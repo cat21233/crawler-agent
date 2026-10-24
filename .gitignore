@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# 秘密与环境（绝不进库）
+.env
+
+# 本地数据 / 产物
+*.db
+*.sqlite3
+.crawl_cache/
+models/
+downloads/
+
+# IDE
+.idea/
+.vscode/

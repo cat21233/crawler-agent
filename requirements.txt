@@ -1,0 +1,23 @@
+# ============================================================
+# crawler-agent 运行依赖（直接依赖，传递依赖交给 pip）
+# 复用 day01 同版本 —— 两个项目共享同一个 .venv 时不会版本打架
+# ============================================================
+
+# --- Web 框架与配置 ---
+fastapi==0.141.1
+uvicorn[standard]==0.52.3
+pydantic==2.13.4
+pydantic-settings==2.15.0
+python-dotenv==1.2.2
+
+# --- 数据库 ---
+SQLAlchemy==2.0.55
+pymysql==1.1.1            # MySQL 驱动（纯 Python）；URL 写 mysql+pymysql://
+
+# --- LLM 调用 ---
+openai==3.5.0
+httpx==0.28.1
+tenacity==9.1.4
+
+# --- 爬虫（W2 接入 fetch_page 时取消注释） ---
+# DrissionPage==4.1.0.18
