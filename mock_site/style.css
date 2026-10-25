@@ -1,0 +1,72 @@
+/* mock_site 公共样式：故意做得像个小电商站，供爬虫练习用 */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 32px 20px 60px;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  background: #f5f6f8;
+  color: #1f2328;
+}
+
+header h1 { font-size: 22px; margin: 0 0 6px; }
+header p { margin: 0 0 28px; color: #6b7280; font-size: 13px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 18px;
+  max-width: 1100px;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow .15s, transform .15s;
+}
+
+.card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px); }
+
+.thumb {
+  height: 120px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.name { font-size: 15px; font-weight: 600; margin: 0 0 6px; line-height: 1.4; }
+
+.price { color: #d92b2b; font-size: 18px; font-weight: 700; margin: 0 0 10px; }
+.price small { font-size: 12px; font-weight: 400; color: #9ca3af; text-decoration: line-through; margin-left: 6px; }
+
+.meta { font-size: 12px; color: #6b7280; margin: 0 0 12px; }
+
+.detail-link {
+  margin-top: auto;
+  display: inline-block;
+  text-align: center;
+  padding: 8px 0;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+}
+.detail-link:hover { background: #1d4ed8; }
+
+/* 详情页 */
+.wrap { max-width: 720px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 28px; }
+.wrap h1 { font-size: 20px; margin: 0 0 12px; }
+.wrap .price { font-size: 24px; }
+table.spec { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 13px; }
+table.spec th, table.spec td { border-bottom: 1px solid #eef0f3; padding: 8px 6px; text-align: left; }
+table.spec th { width: 120px; color: #6b7280; font-weight: 500; }
+.back { font-size: 13px; color: #2563eb; text-decoration: none; }

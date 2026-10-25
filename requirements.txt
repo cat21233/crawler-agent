@@ -19,5 +19,9 @@ openai==3.5.0
 httpx==0.28.1
 tenacity==9.1.4
 
+# --- HTML 解析 ---
+beautifulsoup4==4.15.0    # CSS 选择器解析（自带 soupsieve），纯 Python 无编译
+# lxml 暂不装：bs4 用内置 html.parser 就够；等页面量大到解析成瓶颈再换
+
 # --- 爬虫（W2 接入 fetch_page 时取消注释） ---
 # DrissionPage==4.1.0.18
