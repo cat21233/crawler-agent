@@ -13,7 +13,7 @@
 
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -96,40 +96,8 @@ def init_db(bind: Engine | None = None) -> None:
     Base.metadata.create_all(bind=bind or engine)
 
 
-# ── 6. 种子数据：让「刚建好的空库」立刻能登录 ───────────────────────
-# 幂等：已存在的用户名直接跳过，反复启动不会插重复行，也不会改你手动改过的密码。
-# ⚠️ 生产环境不要用它（.env 里 DB_AUTO_SEED=false 关掉），
-#    真实账号应该走注册接口 + 管理员审批。
-DEFAULT_USERS = (
-    {"username": "zihao", "password": "123456", "role": "admin"},
-    {"username": "test", "password": "123456", "role": "user"},
-)
-
-
-def seed_default_users(session: Session | None = None) -> int:
-    """插入默认账号，返回本次真正新增的条数。不传 session 就自己开一个。"""
-    from common.security import pwd
-    from db_models import User
-
-    owns_session = session is None
-    db = session or SessionLocal()
-    inserted = 0
-    try:
-        # 一次查出所有已存在的用户名，避免「循环里查库」的 N+1 问题
-        existing = set(db.scalars(select(User.username)).all())
-        for spec in DEFAULT_USERS:
-            if spec["username"] in existing:
-                continue
-            db.add(
-                User(
-                    username=spec["username"],
-                    hashed_password=pwd.hash(spec["password"]),
-                    role=spec["role"],
-                )
-            )
-            inserted += 1
-        db.commit()
-    finally:
-        if owns_session:
-            db.close()
-    return inserted
+# ── 6. 种子数据：本期不需要 ─────────────────────────────────────────
+# day01 里这段灌的是登录用的 users 表；crawler-agent 没有用户表
+# （五张表是 threads/tasks/targets/records/agent_traces），
+# 而且 common/security.py 没搬过来 —— 留着就是一颗「谁调用谁 ImportError」的雷，
+# 所以直接删掉，需要时再按新表结构重写。

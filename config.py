@@ -9,7 +9,7 @@ class ConfigError(Exception):
 
 
 class Settings(BaseSettings):
-    app_name: str = "我的FastAPI项目"
+    app_name: str = "crawler-agent"
     port: int = 8000
     debug: bool = False
     agnes_api_key: str = ""
@@ -23,25 +23,14 @@ class Settings(BaseSettings):
     zhipu_model: str = "glm-4.7-flash"
     # 当前默认厂商：LLMClient 用哪家由这里决定，换厂商只改 .env，不动代码。
     # （agnes 免费额度容易打满，429 时切 deepseek 即可）
-    # ── RAG 存储 ──────────────────────────────
-    # 路径都是「相对项目根目录」，rag_store.py 里拼 ROOT 后使用。
-    # 放在 config 里是为了容器部署时能换（t-032 的 Dockerfile 里挂载点不同）。
-    chroma_dir: str = ".chroma_probe"
-    rag_collection: str = "day020"
-    rag_vec_file: str = "study_day_learns/day-020/split_embeddings.json"
-
     # ── 关系数据库（业务数据）──────────────────────
     # 换库只改 .env 的 DATABASE_URL，代码一个字不动。
-    # 本地开发：SQLite 文件（零配置，文件就落在项目根）
-    # 真实数据库（本机 phpstudy MySQL）：
-    #   DATABASE_URL=mysql+pymysql://root:密码@127.0.0.1:3306/day01?charset=utf8mb4
+    # 本机：phpStudy MySQL 5.7.26（面板启动型，无 Windows 服务）
+    #   DATABASE_URL=mysql+pymysql://crawler_app:密码@127.0.0.1:3306/crawler_agent?charset=utf8mb4
     # 注意 charset=utf8mb4：utf8 在 MySQL 里只有 3 字节，存 emoji 会直接报错
     database_url: str = "sqlite:///./app.db"
     # 调试用：把每条 SQL 打到控制台（.env 里 DATABASE_ECHO=true 打开）
     database_echo: bool = False
-    # 启动时是否自动插入演示账号（生产环境务必 false）
-    db_auto_seed: bool = True
-    # 改后
     llm_provider: str = "deepseek"
 
     # ── JWT 签名密钥（秘密！只能来自 .env）────────────
