@@ -67,6 +67,11 @@ def save_records(target_id: int, cards: list[dict]) -> dict:
                 skipped += 1
                 continue
             seen.add(url_hash)
+            # 表里没有独立列的字段全塞 extra：sku、详情页参数表 spec……
+            # extra 是建表时预留的 Text 列，加字段不需要动表结构。
+            extra_fields = {
+                k: v for k, v in card.items() if k not in _CARD_FIELDS and v is not None
+            }
             s.add(
                 Record(
                     target_id=target_id,
@@ -76,7 +81,11 @@ def save_records(target_id: int, cards: list[dict]) -> dict:
                     price=str(card["price"]) if card["price"] is not None else None,
                     url=card["url"],
                     url_hash=url_hash,
-                    extra=json.dumps({"sku": card["sku"]}, ensure_ascii=False),
+                    extra=(
+                        json.dumps(extra_fields, ensure_ascii=False)
+                        if extra_fields
+                        else None
+                    ),
                 )
             )
             inserted += 1
@@ -102,6 +111,8 @@ SELF = "@"
 # 对应 records 表的 NOT NULL 列。缺了这张卡根本存不进去，解析阶段就丢掉。
 # price 可空（"面议"抽不出数字），所以不在必填里。
 REQUIRED_FIELDS = ("name", "url")
+# records 表有独立列的字段。其余一律进 extra —— 加字段不用改表结构。
+_CARD_FIELDS = ("name", "price", "url")
 
 
 def _pick(card_tag, spec: dict) -> str | None:
@@ -117,7 +128,7 @@ def _pick(card_tag, spec: dict) -> str | None:
     attr = spec.get("attr")
     if attr:
         return tag.get(attr)  # 属性不存在返回 None，不会像 tag[attr] 那样抛 KeyError
-    return tag.get_text(strip=True)
+    return tag.get_text(" ", strip=True)
 
 
 _MONEY_RE = re.compile(r"[\d.]+")
@@ -192,6 +203,38 @@ def parse_by_selector(html: str, base_url: str, field_map: dict) -> list[dict]:
     return out
 
 
+def parse_kv_table(html: str, table_selector: str | None = None) -> dict:
+    """把详情页 <th>键</th><td>值</td> 这种参数表抓成一个 dict。
+
+    为什么不能用 field_map？因为**键名本身就是数据**：p1 是"轴体/键位数"，
+    p2 是"连接方式/分辨率/续航"，p3 是"面板/刷新率"，p5 是"供电/线长/材质"。
+    五个页面只有"商品编号/库存"是共通的，固定字段列表穷举不了。
+
+    所以整张表当一个 dict 返回，调用方塞进 records.extra（Text 列，预留的）。
+
+    一个 tr 里可以有多组 th/td（横向排版的参数表），按相邻的 th→td 配对取。
+    同名键保留首次出现的值（多张表出现"库存"时不会互相覆盖）。
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    roots = soup.select(table_selector) if table_selector else [soup]
+
+    out: dict[str, str] = {}
+    for root in roots:
+        for tr in root.select("tr"):
+            cells = tr.find_all(["th", "td"])
+            for i, cell in enumerate(cells):
+                if cell.name != "th" or i + 1 >= len(cells):
+                    continue
+                nxt = cells[i + 1]
+                if nxt.name != "td":  # 纯表头行（th 后面还是 th）直接跳过
+                    continue
+                key = cell.get_text(" ", strip=True)
+                value = nxt.get_text(" ", strip=True)
+                if key and value:
+                    out.setdefault(key, value)
+    return out
+
+
 if __name__ == "__main__":
     # 一份完整的 field_map：四种取法各来一个
     #   name  取文本      price 取文本 + 转数字
@@ -221,3 +264,19 @@ if __name__ == "__main__":
         print(f'{r["sku"]:5} | {r["name"]:24} | {r["price"]:>8.1f} | {r["url"]}')
     assert rows == cards, f"field_map 版必须和硬编码版逐条一致\n{rows}\n!=\n{cards}"
     print("✅ field_map 版与硬编码版逐条一致（属性/文本/money/urljoin 四种取法都对）")
+
+    # ── 详情页：参数表是动态键，field_map 装不下，只能整表抓成 dict ──
+    spec = parse_kv_table(fetch_page(base + "detail/p1.html"))
+    print(f"[详情页参数表] p1 抓到 {len(spec)} 组")
+    for k, v in spec.items():
+        print(f"    {k}: {v}")
+    assert len(spec) == 6, f"p1 应该有 6 组参数，实际 {len(spec)}"
+    assert spec["商品编号"] == "K87", "商品编号取错了"
+
+    # 五页的键组合各不相同 —— 这就是「固定字段列表穷举不了」的实证
+    key_sets = {
+        tuple(parse_kv_table(fetch_page(f"{base}detail/p{i}.html"))) for i in range(1, 6)
+    }
+    print(f"[动态键] 5 页产出 {len(key_sets)} 种不同的键组合")
+    assert len(key_sets) == 5, "五页键组合应该各不相同"
+    print("✅ 详情页参数表抽取通过")
