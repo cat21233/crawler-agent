@@ -19,3 +19,6 @@ downloads/
 # IDE
 .idea/
 .vscode/
+
+# 本地练习脚本（不进版本库）
+scratch_*.py

@@ -68,6 +68,8 @@ class Target(Base):
     selector: Mapped[str] = mapped_column(String(200), default="")
     # 逗号分隔（"title,price,url"）。P2-3：W2 做 parse_by_selector 时升级为 JSON field_map
     fields: Mapped[str] = mapped_column(String(200), default="title,price,url")
+    # 完整字段规格(JSON)。旧的 selector+fields 两列留着不删，过渡期双写。
+    field_map: Mapped[str | None] = mapped_column(Text,default=None)
     need_render: Mapped[bool] = mapped_column(default=False)
     last_crawled_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     last_status: Mapped[str] = mapped_column(String(20), default="")

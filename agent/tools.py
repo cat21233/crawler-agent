@@ -7,13 +7,19 @@ import httpx
 from bs4 import BeautifulSoup
 
 from db import SessionLocal
-from db_models import Record
+from db_models import Record,Target
 
 
 def fetch_page(url: str, timeout: float = 10.0) -> str:
-    """GET 一个页面，返回 HTML 文本。非 2xx 直接 raise。"""
+    """GET 一个页面，返回 HTML 文本。非 2xx 直接 raise。
 
-    r = httpx.get(url=url, timeout=timeout, follow_redirects=True)
+    trust_env=False 关掉「读 HTTP_PROXY 等环境变量」：
+    带着代理抓 127.0.0.1 时，代理会把「服务没起」的 10061 改写成 502，
+    错误信息被扭曲，排查方向会跑偏。要代理就显式传 proxy=，别让环境变量偷偷生效。
+    """
+
+    r = httpx.get(url=url, timeout=timeout, follow_redirects=True, trust_env=False)
+
     r.raise_for_status()
     return r.text
 
@@ -234,6 +240,26 @@ def parse_kv_table(html: str, table_selector: str | None = None) -> dict:
                     out.setdefault(key, value)
     return out
 
+def list_targets() -> list[dict]:
+    """读出全部采集目标，供 Agent 决定「要抓哪些 URL、用什么选择器」。
+
+    返回的 field_map 已经反序列化成 dict，调用方可以直接喂给 parse_by_selector。
+    """
+    s = SessionLocal()
+    try:
+        rows = s.query(Target).order_by(Target.id).all()
+        return [
+            {
+                "id": t.id,
+                "url": t.url,
+                "field_map": json.loads(t.field_map) if t.field_map else {},
+                "need_render": bool(t.need_render),
+                "last_status": t.last_status,
+            }
+            for t in rows
+        ]
+    finally:
+        s.close()
 
 if __name__ == "__main__":
     # 一份完整的 field_map：四种取法各来一个
