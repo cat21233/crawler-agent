@@ -1,45 +1,10 @@
 import json
-from collections.abc import Callable
+from agent.registry import execute
+from agent.schemas import ALL_TOOLS
 
-from llm_service import registry
 from llm_service.factory import get_client, get_model
-TOOLS = [{
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "查询指定城市的实时天气",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "city": {"type": "string", "description": "城市名"},
-            },
-            "required": ["city"],
-        },
-    },
-},
-{
-    "type":"function",
-    "function": {
-        "name": "get_time",
-        "description": "查询指定城市的当前时间。参数 city 是城市名",
-        "parameters":{
-            "type": "object",
-            "properties":{
-                "city": {
-                    "type": "string",
-                    "description": "城市名，例如北京"
-                }
-            },
-            "required": ["city"]
-        }
-    }
+TOOLS = ALL_TOOLS
 
-}
-]
-REGISTRY: dict[str, Callable] = {
-    "get_weather": registry.get_weather,
-    "get_time": registry.get_time
-}
 async def call_one_tool(client, model, messages) -> bool:
     """跑一轮。True = 模型要调工具（已执行+回传）；False = 模型给最终答案了"""
     resp = await client.chat.completions.create(
@@ -52,14 +17,19 @@ async def call_one_tool(client, model, messages) -> bool:
 
     for tc in msg.tool_calls:              # 情况2：逐个执行
         try:
-            args = json.loads(tc.function.arguments)
-            fn = REGISTRY[tc.function.name]
-            result = fn(**args)
-        except Exception as e:
-            result = f"工具执行失败:{e}"
+            # 无参工具（list_targets）可能给空字符串，json.loads("") 会炸
+            args = json.loads(tc.function.arguments or "{}")
+        except json.JSONDecodeError as e:
+            # 模型吐了非法 JSON —— 这是常态，回填错误让它自己改
+            result = {"ok": False, "error": f"arguments 不是合法 JSON: {e}"}
+        else:
+            # execute 内部已把工具异常转成 {"ok": False, ...}，这里不会抛
+            result = execute(tc.function.name, args)
+
         messages.append({
             "role": "tool",
-            "content": result,
+            # content 必须是字符串：SDK 不校验对象，会原样发出、由服务端拒绝
+            "content": json.dumps(result, ensure_ascii=False, default=str),
             "tool_call_id": tc.id
         })
     return True                           # 告诉外层"再来一圈"
