@@ -12,6 +12,7 @@ from agent.tools import (
     fetch_page,
     list_targets,
     parse_by_selector,
+    parse_kv_table,
     save_records,
 )
 
@@ -20,6 +21,7 @@ TOOL_REGISTRY: dict[str, tuple[Callable, dict]] = {
     "list_targets": (list_targets, schemas.LIST_TARGETS),
     "fetch_page": (fetch_page, schemas.FETCH_PAGE),
     "parse_by_selector": (parse_by_selector, schemas.PARSE_BY_SELECTOR),
+    "parse_kv_table": (parse_kv_table, schemas.PARSE_KV_TABLE),
     "save_records": (save_records, schemas.SAVE_RECORDS),
 }
 

@@ -1,4 +1,4 @@
-"""4 个工具的 JSON Schema —— 给模型看的说明书。
+"""5 个工具的 JSON Schema —— 给模型看的说明书。
 
 格式照 llm_service/tool_calling.py 里的 TOOLS，保持一致的 OpenAI function 格式。
 description 写「什么时候用」，不写「我是什么」——模型靠它决定调谁。
@@ -101,4 +101,32 @@ SAVE_RECORDS = {
     },
 }
 
-ALL_TOOLS = [LIST_TARGETS, FETCH_PAGE, PARSE_BY_SELECTOR, SAVE_RECORDS]
+PARSE_KV_TABLE = {
+    "type": "function",
+    "function": {
+        "name": "parse_kv_table",
+        "description": (
+            "把详情页里的参数表解析成一个键值字典，适合 <th>轴体</th><td>青轴</td> "
+            "这种表格：键名本身就带着信息，且不同商品参数项完全不同（键盘有轴体、"
+            "显示器有刷新率），无法用固定字段列表穷举。"
+            "抓列表页多条商品用 parse_by_selector；抓单个商品的详细参数用本工具。"
+            "返回 {\"键\": \"值\"} 形式的字典，可整体塞进记录的 extra 字段。"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "html": {
+                    "type": "string",
+                    "description": "详情页的 HTML 原文，直接传 fetch_page 的返回值，不要传 URL",
+                },
+                "table_selector": {
+                    "type": "string",
+                    "description": "限定在哪个表格里找参数，例如 table.spec；不传则扫描整页所有表格",
+                },
+            },
+            "required": ["html"],
+        },
+    },
+}
+
+ALL_TOOLS = [LIST_TARGETS, FETCH_PAGE, PARSE_BY_SELECTOR, PARSE_KV_TABLE, SAVE_RECORDS]
