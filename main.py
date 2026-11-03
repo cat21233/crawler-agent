@@ -12,6 +12,7 @@ from fastapi import FastAPI
 
 from config import settings, validate_settings
 from db import init_db
+from routers import targets as targets_router
 
 
 @asynccontextmanager
@@ -33,6 +34,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
+# 收编业务路由。include_router 只是把子路由表挂上来，不会执行任何业务代码。
+app.include_router(targets_router.router)
 
 
 @app.get("/health")
