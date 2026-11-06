@@ -72,6 +72,28 @@ def _target_out(t: Target) -> dict:
         "need_render": bool(t.need_render),  # MySQL 回来是 0/1
         "last_status": t.last_status,
     }
+_FM_REQUIRED = ("card", "name", "url")
+
+
+def _check_field_map(fm: dict | None, where: str) -> None:
+    """入口校验：结构不全的 field_map 不许进库。
+
+    11-03 事实：PATCH 写入只有 card+price 的配置 → 下游 url 少了 base 拼接 →
+    5 条相对地址记录绕过 url_hash 去重重复入库。根因在入口没挡。
+    where 传「哪个接口」，报错能直接定位到这行。
+    """
+    if fm is None:
+        return
+    if not isinstance(fm, dict):
+        raise HTTPException(status_code=422, detail=f"{where} 收到的 field_map 必须是对象，实际是 {type(fm).__name__}")
+    missing = [k for k in _FM_REQUIRED if k not in fm]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{where} 收到的 field_map 缺少必填字段 {missing}，至少要有 {list(_FM_REQUIRED)}",
+        )
+    if not isinstance(fm["card"], str) or not fm["card"].strip():
+        raise HTTPException(status_code=422, detail=f"{where} 收到的 field_map['card'] 必须是非空字符串")
 
 
 # ── 读 ───────────────────────────────────────────────────────────────
@@ -98,6 +120,7 @@ def create_target(payload: TargetCreate, db: Session = Depends(get_db)) -> dict:
     r = db.get(Task, payload.task_id)
     if r is None:
         raise HTTPException(status_code=404, detail="task_id 不存在，请检查任务")
+    _check_field_map(payload.field_map, "POST /targets")
 
 
     obj = Target(
@@ -131,6 +154,8 @@ def update_target(
     if obj is None:
         raise HTTPException(status_code=404, detail=f'target_id={target_id}不存在')
     data = payload.model_dump(exclude_unset=True)
+    if "field_map" in data:
+        _check_field_map(data["field_map"], f"PATCH /targets/{target_id}")
     if "field_map" in data and data["field_map"] is not None:
         data["field_map"] = json.dumps(data["field_map"], ensure_ascii=False)
     for k, v in data.items():

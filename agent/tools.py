@@ -46,6 +46,16 @@ def save_records(target_id: int, cards: list[dict]) -> dict:
     if not cards:
         return {"inserted": 0, "skipped": 0}
 
+    # ⓪ url 必须是绝对地址。相对地址 hash 出来是另一串，url_hash 去重形同虚设
+    #    —— 11-03 就是这样重复入库 5 条的。宁可不写，也不写脏数据。
+    bad = [
+        c.get("url")
+        for c in cards
+        if not str(c.get("url") or "").startswith(("http://", "https://"))
+    ]
+    if bad:
+        raise ValueError(f"url 不是绝对地址，拒绝入库（会让 url_hash 去重失效）：{bad[:3]}")
+
     s = SessionLocal()
     inserted = 0
     skipped = 0
@@ -260,6 +270,29 @@ def list_targets() -> list[dict]:
         ]
     finally:
         s.close()
+
+
+def parse_target(target_id: int, html: str) -> list[dict]:
+    """用库里存的 field_map 解析页面 —— 模型只需要给 target_id 和 html。
+
+    为什么不让模型传 field_map：它会"复述"而不是"复制"。11-03 实测模型复述时
+    丢了 join:base，url 保持相对路径 → url_hash 变了 → 去重被绕过 → 重复入库 5 条。
+    base_url 也从库里取，模型这两个参数一次都不碰。
+    """
+    s = SessionLocal()
+    try:
+        t = s.get(Target,target_id)
+        if t is None:
+            raise ValueError(f"target_id={target_id}不存在")
+        if not t.field_map:
+            raise ValueError(f"target_id={target_id}未配置field_map,无法解析")
+        field_map = json.loads(t.field_map)
+        base_url = t.url
+    finally:
+        s.close()
+    return parse_by_selector(html, base_url, field_map)
+
+
 
 if __name__ == "__main__":
     # 一份完整的 field_map：四种取法各来一个
