@@ -14,7 +14,7 @@ import threading
 import time
 import uuid
 
-
+_CACHE = None
 class PageCache:
     def __init__(self, ttl: int = 300, max_size: int = 100) -> None:
         self._store: dict[str, tuple[str, str, float]] = {}
@@ -97,3 +97,8 @@ class PageCache:
             # 加 == 判断是防御：这个 url 可能已经有更新的 ref，别误删新索引。
             if self._url_index.get(old_url) == oldest_ref:
                 self._url_index.pop(old_url, None)
+def get_cache() ->PageCache:
+    global _CACHE
+    if _CACHE is None:
+        _CACHE = PageCache()
+    return _CACHE

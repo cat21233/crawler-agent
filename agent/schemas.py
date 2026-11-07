@@ -9,9 +9,9 @@ FETCH_PAGE = {
     "function": {
         "name": "fetch_page",
         "description": (
-            "抓取一个网页，返回 HTML 原文。"
-            "需要查看页面内容时使用；如果解析出 0 条数据，"
-            "可以换一组选择器再次调用本工具重试。"
+            "抓取一个网页，把页面内容存到服务端，只返回一个取件码 ref。"
+            "需要解析页面内容时，把 ref 传给 parse_target 或 parse_kv_table。"
+            "本工具不返回 HTML 原文：页面可能几十万字符，直接塞进上下文会把对话撑爆。"
         ),
         "parameters": {
             "type": "object",
@@ -42,34 +42,30 @@ LIST_TARGETS = {
         }
     }
 }
-PARSE_BY_SELECTOR = {
+PARSE_TARGET = {
     "type": "function",
     "function": {
-        "name": "parse_by_selector",
+        "name": "parse_target",
         "description": (
-            "按给定的字段规格从 HTML 里解析出商品列表。"
-            "通常在 fetch_page 之后调用：把上一步拿到的 html 原样传入，"
-            "field_map 从 list_targets 返回的目标里原样复制。"
-            "返回一个数组，每个元素是一条商品；返回空数组说明选择器没命中，"
-            "应换一组选择器重试而不是直接保存。"
+            "按采集目标已保存的配置，从抓好的页面里解析出商品列表。"
+            "通常紧跟 fetch_page 之后调用：把 fetch_page 返回的 ref 原样传进来。"
+            "字段配置在服务端保存着，本工具自己读，你不需要也不应该传 field_map。"
+            "返回一个数组，每个元素是一条商品；返回空数组说明页面结构和配置对不上，"
+            "应先重新 fetch_page 确认页面再重试，不要直接保存。"
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "html": {
-                    "type": "string",
-                    "description": "要解析的 HTML 原文，直接传 fetch_page 的返回值，不要传 URL",
+                "target_id": {
+                    "type": "integer",
+                    "description": "采集目标的 id，取自 list_targets 返回的 target['id']",
                 },
-                "base_url": {
+                "ref": {
                     "type": "string",
-                    "description": "该页面自身的完整 URL，用于把 href 里的相对地址补成绝对地址",
-                },
-                "field_map": {
-                    "type": "object",
-                    "description": "字段规格，含 card 容器选择器与每个字段的 sel/attr/join/cast；从 list_targets 的返回中原样复制",
+                    "description": "fetch_page 返回的取件码，形如 page_xxxxxxxx",
                 },
             },
-            "required": ["base_url", "html", "field_map"],
+            "required": ["target_id", "ref"],
         },
     },
 }
@@ -115,10 +111,11 @@ PARSE_KV_TABLE = {
         "parameters": {
             "type": "object",
             "properties": {
-                "html": {
+                "ref": {
                     "type": "string",
-                    "description": "详情页的 HTML 原文，直接传 fetch_page 的返回值，不要传 URL",
+                    "description": "fetch_page 返回的取件码，形如 page_xxxxxxxx",
                 },
+
                 "table_selector": {
                     "type": "string",
                     "description": "限定在哪个表格里找参数，例如 table.spec；不传则扫描整页所有表格",
@@ -129,4 +126,4 @@ PARSE_KV_TABLE = {
     },
 }
 
-ALL_TOOLS = [LIST_TARGETS, FETCH_PAGE, PARSE_BY_SELECTOR, PARSE_KV_TABLE, SAVE_RECORDS]
+ALL_TOOLS = [LIST_TARGETS, FETCH_PAGE, PARSE_TARGET, PARSE_KV_TABLE, SAVE_RECORDS]

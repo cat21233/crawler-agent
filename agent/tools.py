@@ -8,20 +8,24 @@ from bs4 import BeautifulSoup
 
 from db import SessionLocal
 from db_models import Record,Target
+from common.page_cache import get_cache
 
+def fetch_page(url: str, timeout: float = 10.0) -> dict:
+    """GET 一个页面，把 HTML 存进服务端缓存，只返回取件码 ref。
 
-def fetch_page(url: str, timeout: float = 10.0) -> str:
-    """GET 一个页面，返回 HTML 文本。非 2xx 直接 raise。
+    为什么不直接 return r.text：
+        tool 结果会被 append 进 messages，而 messages 每轮全量重发。
+        一个 48K 的页面在 12 轮循环里会被计费 12 次，直接超 context。
+        所以真数据留在服务端，模型手里只拿一个 8 字符的 ref。
 
     trust_env=False 关掉「读 HTTP_PROXY 等环境变量」：
     带着代理抓 127.0.0.1 时，代理会把「服务没起」的 10061 改写成 502，
     错误信息被扭曲，排查方向会跑偏。要代理就显式传 proxy=，别让环境变量偷偷生效。
     """
-
     r = httpx.get(url=url, timeout=timeout, follow_redirects=True, trust_env=False)
-
     r.raise_for_status()
-    return r.text
+    ref = get_cache().put(r.text, url)   # put 的返回值就是取件码
+    return {"ref": ref, "url": url, "chars": len(r.text)}
 
 
 def parse_cards(html: str, base_url: str) -> list[dict]:
@@ -219,7 +223,7 @@ def parse_by_selector(html: str, base_url: str, field_map: dict) -> list[dict]:
     return out
 
 
-def parse_kv_table(html: str, table_selector: str | None = None) -> dict:
+def parse_kv_table(ref: str, table_selector: str | None = None) -> dict:
     """把详情页 <th>键</th><td>值</td> 这种参数表抓成一个 dict。
 
     为什么不能用 field_map？因为**键名本身就是数据**：p1 是"轴体/键位数"，
@@ -231,6 +235,10 @@ def parse_kv_table(html: str, table_selector: str | None = None) -> dict:
     一个 tr 里可以有多组 th/td（横向排版的参数表），按相邻的 th→td 配对取。
     同名键保留首次出现的值（多张表出现"库存"时不会互相覆盖）。
     """
+    html = get_cache().get(ref)
+    if html is None:
+        raise ValueError(f"ref={ref} 无效，请重新调用 fetch_page 获取新的 ref")
+
     soup = BeautifulSoup(html, "html.parser")
     roots = soup.select(table_selector) if table_selector else [soup]
 
@@ -272,13 +280,16 @@ def list_targets() -> list[dict]:
         s.close()
 
 
-def parse_target(target_id: int, html: str) -> list[dict]:
-    """用库里存的 field_map 解析页面 —— 模型只需要给 target_id 和 html。
+def parse_target(target_id: int, ref: str) -> list[dict]:
+    """用库里存的 field_map 解析页面 —— 模型只需要给 target_id 和 ref。
 
     为什么不让模型传 field_map：它会"复述"而不是"复制"。11-03 实测模型复述时
     丢了 join:base，url 保持相对路径 → url_hash 变了 → 去重被绕过 → 重复入库 5 条。
     base_url 也从库里取，模型这两个参数一次都不碰。
     """
+    html = get_cache().get(ref)
+    if html is None:
+        raise ValueError("ref无效，请重新调用fetch_page获取新的ref")
     s = SessionLocal()
     try:
         t = s.get(Target,target_id)
