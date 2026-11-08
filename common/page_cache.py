@@ -97,7 +97,9 @@ class PageCache:
             # 加 == 判断是防御：这个 url 可能已经有更新的 ref，别误删新索引。
             if self._url_index.get(old_url) == oldest_ref:
                 self._url_index.pop(old_url, None)
-def get_cache() ->PageCache:
+
+
+def get_cache() -> PageCache:
     global _CACHE
     if _CACHE is None:
         _CACHE = PageCache()
