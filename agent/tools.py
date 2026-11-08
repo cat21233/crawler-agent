@@ -302,6 +302,19 @@ def parse_target(target_id: int, ref: str) -> list[dict]:
     finally:
         s.close()
     return parse_by_selector(html, base_url, field_map)
+def count_matches(ref:str,selector:str)->dict:
+    """只读探测：某个 CSS 选择器在这个页面上能命中几个元素。
+
+    为什么需要它：
+        ref 模式把模型和 HTML 彻底隔开了。parse_target 返回 0 条时，
+        模型无法判断是「选择器写错了」还是「页面真的没数据」——它会开始瞎猜。
+        本工具只回命中数量，不回 HTML 正文：给诊断能力，不给页面内容。
+    """
+    html = get_cache().get(ref)
+    if html is None:
+        raise ValueError(f"ref={ref}无效，请重新调用fetch_page获取新的ref")
+    soup = BeautifulSoup(html, "html.parser")
+    return {"selector": selector, "matches": len(soup.select(selector))}
 
 
 

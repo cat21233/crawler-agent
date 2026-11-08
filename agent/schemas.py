@@ -69,6 +69,32 @@ PARSE_TARGET = {
         },
     },
 }
+COUNT_MATCHES = {
+    "type": "function",
+    "function": {
+        "name": "count_matches",
+        "description": (
+            "探测某个 CSS 选择器在指定页面上能命中几个元素，只返回数量，不返回页面内容。"
+            "parse_target 返回空数组时用它诊断：先用目标配置里的 card 选择器探一次，"
+            "命中 0 说明配置里的选择器已在页面改版后失效。"
+            "也可以试几个候选选择器，用命中数量判断哪个才是真正的容器。"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ref": {
+                    "type": "string",
+                    "description": "fetch_page 返回的取件码，形如 page_xxxxxxxx",
+                },
+                "selector": {
+                    "type": "string",
+                    "description": "要探测的 CSS 选择器，例如 article.card",
+                },
+            },
+            "required": ["ref", "selector"],
+        },
+    },
+}
 
 SAVE_RECORDS = {
     "type": "function",
@@ -126,4 +152,4 @@ PARSE_KV_TABLE = {
     },
 }
 
-ALL_TOOLS = [LIST_TARGETS, FETCH_PAGE, PARSE_TARGET, PARSE_KV_TABLE, SAVE_RECORDS]
+ALL_TOOLS = [LIST_TARGETS, FETCH_PAGE, PARSE_TARGET, COUNT_MATCHES, PARSE_KV_TABLE, SAVE_RECORDS]
