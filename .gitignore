@@ -22,3 +22,5 @@ downloads/
 
 # 本地练习脚本（不进版本库）
 scratch_*.py
+
+dev_up.bat
