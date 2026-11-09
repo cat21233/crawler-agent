@@ -107,7 +107,10 @@ class AgentTrace(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     # ── 归属 ──
-    thread_id: Mapped[str] = mapped_column(String(64), index=True)
+    # 不要加 index=True：下面的复合索引 (thread_id, step) 最左列就是 thread_id，
+    # 单列查询走复合索引即可（最左前缀原则）。再加单列索引 = 冗余，写入要多维护一棵树。
+    thread_id: Mapped[str] = mapped_column(String(64))
+
     task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), default=None)
     step: Mapped[int] = mapped_column(default=0)
     # ── 三元组 + 角色 ──

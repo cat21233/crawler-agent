@@ -8,11 +8,13 @@
 """
 
 import json
+import time
 
 from agent.prompts import SYSTEM_PROMPT
 from agent.registry import execute
 from agent.schemas import ALL_TOOLS
 from llm_service.factory import get_client, get_model
+from agent.trace import new_thread_id,save_trace
 
 TOOLS = ALL_TOOLS  # 发给模型的整包说明书（5 个工具）
 
@@ -25,7 +27,7 @@ def _brief(args: dict, limit: int = 60) -> dict:
     }
 
 
-async def call_one_tool(client, model, messages, trace: bool = True) -> bool:
+async def call_one_tool(client, model, messages, thread_id: str, step: int, trace: bool = True) -> bool:
     """跑一轮。True = 模型要调工具（已执行+回传）；False = 模型给最终答案了"""
     resp = await client.chat.completions.create(
         model=model, messages=messages, tools=TOOLS
@@ -42,15 +44,32 @@ async def call_one_tool(client, model, messages, trace: bool = True) -> bool:
         except json.JSONDecodeError as e:
             # 模型吐了非法 JSON —— 这是常态，回填错误让它自己改
             result = {"ok": False, "error": f"arguments 不是合法 JSON: {e}"}
+            save_trace(
+                thread_id, step, "assistant",
+                tool_name=tc.function.name,
+                action=tc.function.arguments,
+                status="error",
+                error=str(e)
+            )
         else:
             # execute 内部已把工具异常转成 {"ok": False, ...}，这里不会抛
             if trace:
                 print(f"[tool] {tc.function.name} {_brief(args)}", flush=True)
+            t0 = time.perf_counter()
             result = execute(tc.function.name, args)
+            latency_ms = int((time.perf_counter()-t0)*1000)
             if trace:
                 out = json.dumps(result, ensure_ascii=False, default=str)
                 print(f"       -> ok={result.get('ok')} {out[:120]}", flush=True)
-
+            save_trace(
+                thread_id, step, "tool",
+                tool_name=tc.function.name,
+                action=json.dumps(args, ensure_ascii=False, default=str),
+                observation=json.dumps(result, ensure_ascii=False, default=str),
+                status="ok" if result.get("ok") else "error",
+                error=result.get("error"),
+                latency_ms=latency_ms,
+            )
         messages.append({
             "role": "tool",
             # content 必须是字符串：SDK 不校验对象，会原样发出、由服务端拒绝
@@ -66,12 +85,17 @@ async def run_agent(
     client=None,
     model: str | None = None,
     trace: bool = True,
+    thread_id: int | None = None
 ) -> str:
     """完整循环，返回模型的最终回答。
 
     client / model 不传就用真 client（生产）；测试传假 client 打桩。
     trace=False 可关掉轨迹输出（比如以后挂到 SSE 端点时改走别的地方）。
     """
+    if thread_id is None:
+        thread_id = new_thread_id()
+    print(f"[run] thread_id = {thread_id}", flush=True)
+
     if client is None:
         client = get_client()
     if model is None:
@@ -85,7 +109,7 @@ async def run_agent(
     for turn in range(1, max_turns + 1):
         if trace:
             print(f"[loop] 第 {turn}/{max_turns} 轮", flush=True)
-        has_tool = await call_one_tool(client, model, messages, trace=trace)
+        has_tool = await call_one_tool(client, model, messages, thread_id, turn, trace=trace)
         if not has_tool:
             return messages[-1].content
     return "(已达到最大轮数，仍未得出结论)"
