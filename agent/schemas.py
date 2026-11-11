@@ -12,6 +12,9 @@ FETCH_PAGE = {
             "抓取一个网页，把页面内容存到服务端，只返回一个取件码 ref。"
             "需要解析页面内容时，把 ref 传给 parse_target 或 parse_kv_table。"
             "本工具不返回 HTML 原文：页面可能几十万字符，直接塞进上下文会把对话撑爆。"
+            "若返回 ok=false 且 retryable=true，表示站点限流（429），"
+            "这是临时状况而非配置错误：不要重试、不要改选择器，把结论报告给用户。"
+
         ),
         "parameters": {
             "type": "object",

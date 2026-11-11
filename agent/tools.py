@@ -10,6 +10,23 @@ from db import SessionLocal
 from db_models import Record,Target
 from common.page_cache import get_cache
 
+
+class RateLimited(Exception):
+    """站点返回 429（Too Many Requests）。
+
+    为什么单独定义一个类，而不是直接 raise HTTPStatusError：
+        429 和 404/403 的性质完全不同 —— 404 是「别试了」，429 是「等会儿再来」。
+        上层要能把这两种语义分开，模型才知道该放弃还是该等。
+    """
+
+    def __init__(self, url: str, retry_after: int | None = None) -> None:
+        self.url = url
+        self.retry_after = retry_after
+        msg = f"{url} 返回 429 限流"
+        if retry_after is not None:
+            msg += f"，站点建议 {retry_after} 秒后重试"
+        super().__init__(msg)
+
 def fetch_page(url: str, timeout: float = 10.0) -> dict:
     """GET 一个页面，把 HTML 存进服务端缓存，只返回取件码 ref。
 
@@ -23,7 +40,15 @@ def fetch_page(url: str, timeout: float = 10.0) -> dict:
     错误信息被扭曲，排查方向会跑偏。要代理就显式传 proxy=，别让环境变量偷偷生效。
     """
     r = httpx.get(url=url, timeout=timeout, follow_redirects=True, trust_env=False)
+
+    # 429 单独处理：必须在 raise_for_status 之前，也必须早于 put 进 cache。
+    # 早于 put 是有意的——错误页拿不到 ref，模型就没有任何办法把它当数据解析。
+    if r.status_code == 429:
+        ra = r.headers.get("Retry-After")
+        raise RateLimited(url, int(ra) if ra and ra.isdigit() else None)
+
     r.raise_for_status()
+
     ref = get_cache().put(r.text, url)   # put 的返回值就是取件码
     return {"ref": ref, "url": url, "chars": len(r.text)}
 

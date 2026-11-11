@@ -14,7 +14,8 @@ from agent.tools import (
     parse_target,
     parse_kv_table,
     save_records,
-    count_matches
+    count_matches,
+    RateLimited
 )
 
 # name -> (调用函数, 说明书)
@@ -53,5 +54,12 @@ def execute(name: str, arguments: dict) -> dict:
     func, _ = hit
     try:
         return {"ok": True, "result": func(**arguments)}
+    except RateLimited as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "retryable": True,
+            "retry_after": e.retry_after,
+        }
     except Exception as e:
-        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        return {"ok": False, "error": f"{type(e).__name__}: {e}", "retryable": False}
