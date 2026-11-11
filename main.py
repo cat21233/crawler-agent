@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from config import settings, validate_settings
 from db import init_db
 from routers import targets as targets_router
-
+from routers import agent_run as agent_run_router
 from routers import trace as trace_router
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -38,7 +38,7 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 # 收编业务路由。include_router 只是把子路由表挂上来，不会执行任何业务代码。
 app.include_router(targets_router.router)
 app.include_router(trace_router.router)
-
+app.include_router(agent_run_router.router)
 @app.get("/health")
 def health() -> dict:
     """健康检查：不碰数据库、不碰 LLM，只回答「进程还活着吗」。

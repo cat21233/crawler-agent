@@ -27,8 +27,9 @@ def _brief(args: dict, limit: int = 60) -> dict:
     }
 
 
-async def call_one_tool(client, model, messages, thread_id: str, step: int, trace: bool = True) -> bool:
+async def call_one_tool(client, model, messages, thread_id: str, step: int, trace: bool = True, emit=None) -> bool:
     """跑一轮。True = 模型要调工具（已执行+回传）；False = 模型给最终答案了"""
+    emit = emit or (lambda kind, **kw: None)
     resp = await client.chat.completions.create(
         model=model, messages=messages, tools=TOOLS
     )
@@ -36,6 +37,7 @@ async def call_one_tool(client, model, messages, thread_id: str, step: int, trac
     messages.append(msg)
     if not msg.tool_calls:                 # 情况1：模型没要工具 → 告诉外层"停"
         return False
+    emit("tool_calls", step=step, names=[tc.function.name for tc in msg.tool_calls])
 
     for tc in msg.tool_calls:              # 情况2：逐个执行
         try:
@@ -51,15 +53,20 @@ async def call_one_tool(client, model, messages, thread_id: str, step: int, trac
                 status="error",
                 error=str(e)
             )
+            emit("tool_error", step=step, name=tc.function.name, error=str(e))
+
         else:
             # execute 内部已把工具异常转成 {"ok": False, ...}，这里不会抛
             if trace:
                 print(f"[tool] {tc.function.name} {_brief(args)}", flush=True)
+            emit("tool_start", step=step, name=tc.function.name, args=_brief(args))
+
             t0 = time.perf_counter()
             result = execute(tc.function.name, args)
             latency_ms = int((time.perf_counter()-t0)*1000)
+            out = json.dumps(result, ensure_ascii=False, default=str)
             if trace:
-                out = json.dumps(result, ensure_ascii=False, default=str)
+
                 print(f"       -> ok={result.get('ok')} {out[:120]}", flush=True)
             save_trace(
                 thread_id, step, "tool",
@@ -69,6 +76,10 @@ async def call_one_tool(client, model, messages, thread_id: str, step: int, trac
                 status="ok" if result.get("ok") else "error",
                 error=result.get("error"),
                 latency_ms=latency_ms,
+            )
+            emit(
+                "tool_end", step=step, name=tc.function.name,
+                ok=result.get("ok"), latency_ms=latency_ms, preview=out[:200],
             )
         messages.append({
             "role": "tool",
@@ -85,16 +96,28 @@ async def run_agent(
     client=None,
     model: str | None = None,
     trace: bool = True,
-    thread_id: int | None = None
+    thread_id: str | None = None,
+    on_event=None,
 ) -> str:
     """完整循环，返回模型的最终回答。
 
     client / model 不传就用真 client（生产）；测试传假 client 打桩。
     trace=False 可关掉轨迹输出（比如以后挂到 SSE 端点时改走别的地方）。
     """
+    def emit(kind:str, **data):
+        """把事件交给外部消费者；没传 on_event 就什么都不做。
+
+               为什么用回调而不是 print：
+                   print 是终端专用输出，SSE 要的是结构化 dict。
+                   字符串和 dict 之间那道解析迟早会变成自己写正则。
+               """
+        if on_event is not None:
+            on_event({"type": kind, **data})
+
     if thread_id is None:
         thread_id = new_thread_id()
     print(f"[run] thread_id = {thread_id}", flush=True)
+    emit("start", thread_id=thread_id)
 
     if client is None:
         client = get_client()
@@ -109,7 +132,8 @@ async def run_agent(
     for turn in range(1, max_turns + 1):
         if trace:
             print(f"[loop] 第 {turn}/{max_turns} 轮", flush=True)
-        has_tool = await call_one_tool(client, model, messages, thread_id, turn, trace=trace)
+        has_tool = await call_one_tool(client, model, messages, thread_id, turn, trace=trace, emit=emit)
         if not has_tool:
+            emit("answer", content=messages[-1].content)
             return messages[-1].content
     return "(已达到最大轮数，仍未得出结论)"
