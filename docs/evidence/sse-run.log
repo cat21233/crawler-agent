@@ -1,0 +1,45 @@
+event: start
+data: {"type": "start", "thread_id": "20261112_203626_4f7a"}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 1, "names": ["list_targets"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 1, "name": "list_targets", "args": {}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 1, "name": "list_targets", "ok": true, "latency_ms": 8, "preview": "{\"ok\": true, \"result\": [{\"id\": 1, \"url\": \"http://127.0.0.1:8099/\", \"field_map\": {\"card\": \"article.card\", \"sku\": {\"sel\": \"@\", \"attr\": \"data-sku\"}, \"name\": {\"sel\": \"h2.name\"}, \"price\": {\"sel\": \"p.price\""}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 2, "names": ["fetch_page"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 2, "name": "fetch_page", "args": {"url": "http://127.0.0.1:8099/"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 2, "name": "fetch_page", "ok": true, "latency_ms": 75, "preview": "{\"ok\": true, \"result\": {\"ref\": \"page_3dd72fc1\", \"url\": \"http://127.0.0.1:8099/\", \"chars\": 1738}}"}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 3, "names": ["parse_target"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 3, "name": "parse_target", "args": {"target_id": 1, "ref": "page_3dd72fc1"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 3, "name": "parse_target", "ok": true, "latency_ms": 79, "preview": "{\"ok\": true, \"result\": [{\"sku\": \"K87\", \"name\": \"机械键盘 K87 青轴\", \"price\": 499.0, \"url\": \"http://127.0.0.1:8099/detail/p1.html\"}, {\"sku\": \"M2\", \"name\": \"无线鼠标 M2 静音版\", \"price\": 129.0, \"url\": \"http://127.0."}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 4, "names": ["save_records"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 4, "name": "save_records", "args": {"target_id": 1, "cards": [{"sku": "K87", "name": "机械键盘 K87 青轴", "price": 499.0, "url": "http://127.0.0.1:8099/detail/p1.html"}, {"sku": "M2", "name": "无线鼠标 M2 静音版", "price": 129.0, "url": "http://127.0.0.1:8099/detail/p2.html"}, {"sku": "U27", "name": "27 寸 4K 显示器 U27", "price": 1299.0, "url": "http://127.0.0.1:8099/detail/p3.html"}, {"sku": "H1", "name": "降噪耳机 H1 头戴式", "price": 899.0, "url": "http://127.0.0.1:8099/detail/p4.html"}, {"sku": "D6", "name": "USB-C 扩展坞 D6 七合一", "price": 259.0, "url": "http://127.0.0.1:8099/detail/p5.html"}]}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 4, "name": "save_records", "ok": true, "latency_ms": 11, "preview": "{\"ok\": true, \"result\": {\"inserted\": 0, \"skipped\": 5}}"}
+
+event: answer
+data: {"type": "answer", "content": "完成 target 1 的采集。\n\n## 结果\n- **成功目标**：1 个（target 1，主页 http://127.0.0.1:8099/）\n- **解析条数**：5 条\n- **新增**：0 条\n- **跳过**：5 条\n- **失败**：无\n\n5 条商品（K87 机械键盘、M2 无线鼠标、U27 显示器、H1 降噪耳机、D6 扩展坞）都顺利解析出来了，但写入时全部被跳过，说明这 5 条按 (target_id, url) 去重后已经存在于数据库中——本次是重复采集，未产生新数据。\n\n如果预期应该有新增，可以确认下数据库里是否已存过同一批次；否则这批数据就是最新的，无需处理。"}
+
+event: done
+data: {"type": "done"}
+
