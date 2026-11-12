@@ -49,7 +49,7 @@ def execute(name: str, arguments: dict) -> dict:
     """
     hit = get_tool(name)
     if hit is None:
-        return {"ok": False, "error": f"没有名为 {name!r} 的工具"}
+        return {"ok": False, "error": f"没有名为 {name!r} 的工具", 'retryable': False}
 
     func, _ = hit
     try:
