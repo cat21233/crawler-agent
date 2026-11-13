@@ -15,6 +15,7 @@ from db import init_db
 from routers import targets as targets_router
 from routers import agent_run as agent_run_router
 from routers import trace as trace_router
+from routers import stats as stats_router
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """yield 之前 = 启动阶段，yield 之后 = 关闭阶段，中间这段才是服务真正在跑。"""
@@ -39,6 +40,7 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.include_router(targets_router.router)
 app.include_router(trace_router.router)
 app.include_router(agent_run_router.router)
+app.include_router(stats_router.router)
 @app.get("/health")
 def health() -> dict:
     """健康检查：不碰数据库、不碰 LLM，只回答「进程还活着吗」。
