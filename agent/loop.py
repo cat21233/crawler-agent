@@ -53,7 +53,7 @@ async def call_one_tool(client, model, messages, thread_id: str, step: int, trac
                 status="error",
                 error=str(e)
             )
-            emit("tool_error", step=step, name=tc.function.name, error=str(e))
+            emit("tool_error", step=step, name=tc.function.name, error=result["error"])
 
         else:
             # execute 内部已把工具异常转成 {"ok": False, ...}，这里不会抛
