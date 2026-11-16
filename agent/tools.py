@@ -27,6 +27,25 @@ class RateLimited(Exception):
             msg += f"，站点建议 {retry_after} 秒后重试"
         super().__init__(msg)
 
+
+# 浏览器特征。不加这组头，httpx 会发 `User-Agent: python-httpx/0.28.x`，
+# 等于隔着门喊「我是脚本」。
+# 11-08 实测（改前 → 加头后）：豆瓣 418 → 200、知乎 403 → 200、微博 432 → 200。
+# Accept-Language 里的 zh-CN 不能省：有些站按语言返回不同的页面结构，
+# 不带它可能拿到英文版，选择器就对不上了。
+DEFAULT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+}
+
+
 def fetch_page(url: str, timeout: float = 10.0) -> dict:
     """GET 一个页面，把 HTML 存进服务端缓存，只返回取件码 ref。
 
@@ -39,7 +58,13 @@ def fetch_page(url: str, timeout: float = 10.0) -> dict:
     带着代理抓 127.0.0.1 时，代理会把「服务没起」的 10061 改写成 502，
     错误信息被扭曲，排查方向会跑偏。要代理就显式传 proxy=，别让环境变量偷偷生效。
     """
-    r = httpx.get(url=url, timeout=timeout, follow_redirects=True, trust_env=False)
+    r = httpx.get(
+        url=url,
+        timeout=timeout,
+        follow_redirects=True,
+        trust_env=False,
+        headers=DEFAULT_HEADERS,
+    )
 
     # 429 单独处理：必须在 raise_for_status 之前，也必须早于 put 进 cache。
     # 早于 put 是有意的——错误页拿不到 ref，模型就没有任何办法把它当数据解析。
