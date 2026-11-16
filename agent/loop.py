@@ -20,11 +20,28 @@ TOOLS = ALL_TOOLS  # 发给模型的整包说明书（5 个工具）
 
 
 def _brief(args: dict, limit: int = 60) -> dict:
-    """参数摘要：长字符串（如整页 HTML）只显示长度，不打满屏。"""
-    return {
-        k: (f"<{len(v)} 字符的字符串>" if isinstance(v, str) and len(v) > limit else v)
-        for k, v in args.items()
-    }
+    """参数摘要：长字符串、长列表、长字典都只显示规模，不打满屏。
+
+    为什么不能只判 isinstance(str)：
+        save_records 的 cards 是 5 条商品的 list。单个字段都不长，
+        但整个列表 JSON 化上千字符，只判字符串会把它原样放进 SSE 事件，
+        前端事件流直接被撑满（11-16 实测踩到）。
+
+    这里只报规模不报内容，是有意的：事件流负责「让人看见在动」，
+    要看完整参数请用 thread_id 查 GET /traces/{thread_id}。
+    """
+    out = {}
+    for k, v in args.items():
+        if isinstance(v, str) and len(v) > limit:
+            out[k] = f"<{len(v)} 字符的字符串>"
+        elif isinstance(v, (list, tuple)):
+            out[k] = f"<{len(v)} 项列表>"
+        elif isinstance(v, dict):
+            raw = json.dumps(v, ensure_ascii=False, default=str)
+            out[k] = f"<{len(v)} 键字典>" if len(raw) > limit else v
+        else:
+            out[k] = v
+    return out
 
 
 async def call_one_tool(client, model, messages, thread_id: str, step: int, trace: bool = True, emit=None) -> bool:
