@@ -146,9 +146,16 @@ def save_records(target_id: int, cards: list[dict]) -> dict:
                 Record(
                     target_id=target_id,
                     title=card["name"],  # cards 里叫 name，表里叫 title
-                    # 表里是 String(50)，必须转字符串；但 price 可空，
-                    # str(None) 会得到 "None" 这个字符串去污染数据，得单独挡掉
-                    price=str(card["price"]) if card["price"] is not None else None,
+                    # price 不是必填字段：电影的 field_map 里根本没有这一项。
+                    # 写 card["price"] 会 KeyError —— 11-16 拿豆瓣真实站点试才暴露，
+                    # mock 站每次都配了 price，所以这个假设藏了一整个月。
+                    # 表里是 String(50) 要转字符串；但 str(None) 会得到 "None"
+                    # 这个字符串去污染数据，得单独挡掉。
+                    price=(
+                        str(card.get("price"))
+                        if card.get("price") is not None
+                        else None
+                    ),
                     url=card["url"],
                     url_hash=url_hash,
                     extra=(
