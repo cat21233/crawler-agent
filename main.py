@@ -9,6 +9,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from config import settings, validate_settings
 from db import init_db
@@ -16,6 +18,8 @@ from routers import targets as targets_router
 from routers import agent_run as agent_run_router
 from routers import trace as trace_router
 from routers import stats as stats_router
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """yield 之前 = 启动阶段，yield 之后 = 关闭阶段，中间这段才是服务真正在跑。"""
@@ -41,6 +45,22 @@ app.include_router(targets_router.router)
 app.include_router(trace_router.router)
 app.include_router(agent_run_router.router)
 app.include_router(stats_router.router)
+
+# 前端静态资源。挂载整个目录而不是一个个加端点：前端有 html/js/css 三个文件，
+# 每加一个文件就加一个路由不现实。静态文件不碰数据库，和业务路由互不影响。
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def index() -> FileResponse:
+    """根路径直接给前端页面。
+
+    include_in_schema=False：这是给人看的页面，不是给机器调的 API，
+    塞进 /docs 只会让接口列表变脏。
+    """
+    return FileResponse("static/index.html")
+
+
 @app.get("/health")
 def health() -> dict:
     """健康检查：不碰数据库、不碰 LLM，只回答「进程还活着吗」。
