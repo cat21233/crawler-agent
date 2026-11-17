@@ -56,6 +56,24 @@ class PageCache:
                 return None
             return html
 
+    def get_url(self, ref: str) -> str | None:
+        """凭 ref 取这页当初的地址。不存在 / 已过期返回 None。
+
+        为什么需要：extract_links 要把页面上的相对 href 拼成绝对地址，
+        而 ref 模式只把取件码交给模型，页面地址只有服务端自己知道。
+        不新开一个参数让模型传 url —— 11-03 的教训是模型「复述」会丢东西。
+        """
+        with self._lock:
+            entry = self._store.get(ref)
+            if entry is None:
+                return None
+            html, url, expire_at = entry
+            if time.monotonic() > expire_at:
+                self._store.pop(ref, None)
+                self._url_index.pop(url, None)
+                return None
+            return url
+
     def check_url_index(self, url: str) -> str | None:
         """url 对应的、仍然可用的 ref；没有或已失效返回 None。
 

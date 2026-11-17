@@ -372,6 +372,25 @@ def count_matches(ref:str,selector:str)->dict:
         raise ValueError(f"ref={ref}无效，请重新调用fetch_page获取新的ref")
     soup = BeautifulSoup(html, "html.parser")
     return {"selector": selector, "matches": len(soup.select(selector))}
+def extract_links(ref: str, selector: str | None = None) -> dict:
+    html = get_cache().get(ref)
+    if html is None:
+        raise ValueError(f"ref={ref} 无效，请重新调用fetch_page 获取新的ref")
+    base_url = get_cache().get_url(ref)
+    soup = BeautifulSoup(html, "html.parser")
+    sel = selector or "a[href]"
+    tags = soup.select(sel)
+    links = []
+    for a in tags:
+        href = a.get("href") or ""
+        if not href or href.startswith("#"):
+            continue
+        url = urljoin(base_url, href)
+        if not url.startswith(("http://", "https://")):
+            continue
+        links.append(url)
+    links = list(dict.fromkeys(links))
+    return {"links": links, "total": len(links)}
 
 
 
@@ -388,7 +407,12 @@ if __name__ == "__main__":
     }
 
     base = "http://127.0.0.1:8099/"
-    html = fetch_page(base)
+    # ref 模式（11-07 起）：fetch_page 只回取件码，原文留在服务端缓存里。
+    # 自测要拿原文，得自己用 ref 去兑换 —— 这一段当初漏改，返回的 dict 被当成
+    # html 喂给 bs4，整个 __main__ 自测从 11-07 起就是死的（跑起来 KeyError）。
+    ref = fetch_page(base)["ref"]
+    html = get_cache().get(ref)
+    assert html, "ref 取不出原文，缓存没存住"
 
     cards = parse_cards(html, base)
     print(f"[硬编码版] 抓到 {len(cards)} 条")
@@ -406,7 +430,7 @@ if __name__ == "__main__":
     print("✅ field_map 版与硬编码版逐条一致（属性/文本/money/urljoin 四种取法都对）")
 
     # ── 详情页：参数表是动态键，field_map 装不下，只能整表抓成 dict ──
-    spec = parse_kv_table(fetch_page(base + "detail/p1.html"))
+    spec = parse_kv_table(fetch_page(base + "detail/p1.html")["ref"])
     print(f"[详情页参数表] p1 抓到 {len(spec)} 组")
     for k, v in spec.items():
         print(f"    {k}: {v}")
@@ -415,8 +439,24 @@ if __name__ == "__main__":
 
     # 五页的键组合各不相同 —— 这就是「固定字段列表穷举不了」的实证
     key_sets = {
-        tuple(parse_kv_table(fetch_page(f"{base}detail/p{i}.html"))) for i in range(1, 6)
+        tuple(parse_kv_table(fetch_page(f"{base}detail/p{i}.html")["ref"])) for i in range(1, 6)
     }
     print(f"[动态键] 5 页产出 {len(key_sets)} 种不同的键组合")
     assert len(key_sets) == 5, "五页键组合应该各不相同"
     print("✅ 详情页参数表抽取通过")
+    # ── extract_links：链接发现（翻页的地基）──
+    r_idx = fetch_page(base)["ref"]
+    r_p2  = fetch_page(base + "page2.html")["ref"]
+    r_p3  = fetch_page(base + "page3.html")["ref"]
+
+    d = extract_links(r_idx)
+    print(f"[链接发现] 首页默认 {d['total']} 条，最后一条 {d['links'][-1]}")
+    assert d["total"] == 6, f"首页应有 6 条（5 详情 + 1 下一页），实际 {d['total']}"
+    assert all(u.startswith("http://") for u in d["links"]), "出现非绝对地址"
+    assert d["links"][-1].endswith("page2.html"), "「下一页」必须排最后（保序才有意义）"
+
+    assert extract_links(r_idx, "a.detail-link")["total"] == 5, "详情链接应为 5 条"
+    assert extract_links(r_p2, "a.next")["links"] == [base + "page3.html"], "page2 下一页应是 page3"
+    assert extract_links(r_p3, "a.next")["total"] == 0, "最后一页不该有下一页（终止信号）"
+    assert extract_links(r_idx)["links"] == d["links"], "同 ref 两次必须同结果"
+    print("✅ 链接发现通过（含终止信号）")

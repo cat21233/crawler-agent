@@ -15,7 +15,8 @@ from agent.tools import (
     parse_kv_table,
     save_records,
     count_matches,
-    RateLimited
+    RateLimited,
+    extract_links
 )
 
 # name -> (调用函数, 说明书)
@@ -26,7 +27,8 @@ TOOL_REGISTRY: dict[str, tuple[Callable, dict]] = {
 
     "parse_kv_table": (parse_kv_table, schemas.PARSE_KV_TABLE),
     "save_records": (save_records, schemas.SAVE_RECORDS),
-    "count_matches": (count_matches, schemas.COUNT_MATCHES)
+    "count_matches": (count_matches, schemas.COUNT_MATCHES),
+    "extract_links": (extract_links, schemas.EXTRACT_LINKS)
 }
 
 

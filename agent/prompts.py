@@ -1,7 +1,7 @@
 """Agent 的 system prompt —— 每次请求都发，规则必须与工具的真实返回对齐。
 
 修订记录（相对设计定稿第五节的草稿）：
-- 工具从 4 个变 5 个：补 parse_kv_table（详情页参数表，键名本身是数据）
+- 工具从 4 个变 7 个：补 parse_kv_table+count_matches+extract_links（详情页参数表，键名本身是数据）
 - 删掉 html_snippet / has_likely_data / status=blocked / rate_limited 四条规则：
   这些字段属于 ref 模式的 fetch_page（设计定稿 4.4），现在的 fetch_page 返回原文。
   让模型按不存在的字段做决策 = 空话。W2 后半段 ref 模式落地时再加回来。
@@ -20,6 +20,14 @@ SYSTEM_PROMPT = """你是一个网页数据采集 Agent。根据用户指令，�
 - fetch_page 只返回取件码 ref，不返回 HTML 原文。页面内容存在服务端，凭 ref 访问
 - 解析和探测一律传 ref，不要试图自己编码页面内容，也不要猜测页面长什么样
 - 字段配置（field_map）由服务端保存并读取，你不需要传，也不应该传
+
+## 需要翻页时
+- 翻页靠「发现链接」而不是「猜页码」：extract_links(ref, selector="a.next") 拿下一页地址 →
+  fetch_page 抓它 → 照常 parse_target + save_records，循环
+- 不要自己拼 page=2 这类 URL：真实站可能是 ?page=2、可能是游标、可能无限滚动，只跟页面里真实存在的链接
+- total=0 是翻到底的信号；但如果 links 里明明有「下一页」链接而 total=0，说明 selector 选错了，
+  换候选再探，别当成抓完了
+- 每页解析完立刻 save_records（它按 url 幂等），不要攒到最后一次性提交——中途失败才不会全丢
 
 ## 解析结果为空数组时怎么诊断
 1. 用 count_matches 探测目标配置里的 card 选择器，先确认它命中数是不是 0

@@ -1,4 +1,4 @@
-"""5 个工具的 JSON Schema —— 给模型看的说明书。
+"""7 个工具的 JSON Schema —— 给模型看的说明书。
 
 格式照 llm_service/tool_calling.py 里的 TOOLS，保持一致的 OpenAI function 格式。
 description 写「什么时候用」，不写「我是什么」——模型靠它决定调谁。
@@ -150,9 +150,51 @@ PARSE_KV_TABLE = {
                     "description": "限定在哪个表格里找参数，例如 table.spec；不传则扫描整页所有表格",
                 },
             },
-            "required": ["html"],
+            "required": ["ref"],
+        },
+    },
+}
+EXTRACT_LINKS = {
+    "type": "function",
+    "function": {
+        "name": "extract_links",
+        "description": (
+            "从已抓好的页面里提取链接，返回绝对地址列表，用来发现详情页入口和翻页链接。"
+            "要翻页、或要从列表页判断该去抓哪些详情页时用它；只想解析页面里的商品字段用 parse_target，不要用本工具。"
+            "只传 ref 不传 selector 时返回页面全部 <a href> 链接，其中可能混有导航、页脚的噪声链接。"
+            "返回 {\"links\": [...], \"total\": n}：links 按页面出现顺序去重，已剔除 javascript:、mailto: 和纯锚点，"
+            "每项都是 http:// 或 https:// 开头的绝对地址；total 等于 links 的长度。"
+            "total=0 有两种含义：页面确实没有这类链接（例如最后一页没有再往后的入口），"
+            "或 selector 写错导致一个都没命中。二者无法从返回值区分，"
+            "所以不要在陌生站点上直接把 total=0 当成「抓完了」：先用 count_matches 验证同一选择器的命中数，"
+            "或换候选选择器重探，再决定是收工还是改选择器。"
+            "本工具只发现地址，不抓取也不解析：拿到「下一页」地址后，要把它交给 fetch_page 抓取，再走 parse_target。"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ref": {
+                    "type": "string",
+                    "description": (
+                        "fetch_page 返回的取件码，形如 page_xxxxxxxx。"
+                        "ref 有效期约 300 秒且缓存条目会被淘汰，失效时本工具直接报错，"
+                        "此时必须重新调用 fetch_page 取新的 ref，不要复用旧值，也不要猜测 ref 的内容。"
+                    ),
+                },
+                "selector": {
+                    "type": "string",
+                    "description": (
+                        "CSS 选择器，限定只提取哪一类链接，例如 a.detail-link 取商品详情链接、"
+                        ".pager a.next 取下一页链接。示例仅是形式，实际类名以页面真实结构为准，"
+                        "可先用 count_matches 探命中数。不传则返回页面全部 <a href> 链接。"
+                        "选择器不命中不会报错，只会返回 total=0。"
+                    ),
+                },
+            },
+            "required": ["ref"],
         },
     },
 }
 
-ALL_TOOLS = [LIST_TARGETS, FETCH_PAGE, PARSE_TARGET, COUNT_MATCHES, PARSE_KV_TABLE, SAVE_RECORDS]
+
+ALL_TOOLS = [LIST_TARGETS, FETCH_PAGE, PARSE_TARGET, COUNT_MATCHES, PARSE_KV_TABLE, SAVE_RECORDS, EXTRACT_LINKS]

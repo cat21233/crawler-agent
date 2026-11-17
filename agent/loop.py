@@ -16,7 +16,7 @@ from agent.schemas import ALL_TOOLS
 from llm_service.factory import get_client, get_model
 from agent.trace import new_thread_id,save_trace
 
-TOOLS = ALL_TOOLS  # 发给模型的整包说明书（5 个工具）
+TOOLS = ALL_TOOLS  # 发给模型的整包说明书（7 个工具）
 
 
 def _brief(args: dict, limit: int = 60) -> dict:
