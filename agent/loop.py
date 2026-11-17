@@ -153,4 +153,11 @@ async def run_agent(
         if not has_tool:
             emit("answer", content=messages[-1].content)
             return messages[-1].content
-    return "(已达到最大轮数，仍未得出结论)"
+
+    # ↓ 只有 for 正常跑完（每轮都要了工具）才会到这里。必须在循环外：
+    #   放进循环里就变成「第一轮有工具调用就直接报跑满了」，11-17 实测栽过。
+    msg = (f"（跑到上限 {max_turns} 轮仍未得出结论，已停下。"
+           f"常见原因：目标选择器失效需要反复探测，或任务太大。"
+           f"可以调大 max_turns，或先确认 target 配置再重跑）")
+    emit("answer", content=msg)
+    return msg

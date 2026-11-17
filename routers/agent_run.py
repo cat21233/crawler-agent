@@ -13,7 +13,7 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 class RunRequest(BaseModel):
     input: str
-    max_turns: int = 8
+    max_turns: int = 12
 
 
 @router.post("/run")

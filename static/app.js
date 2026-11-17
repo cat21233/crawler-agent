@@ -233,7 +233,7 @@ async function run() {
     const resp = await fetch("/agent/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input, max_turns: 8 }),
+      body: JSON.stringify({ input, max_turns: 12 }),
     });
 
     // resp.body 为 null 说明浏览器不支持流式读取（几乎不会，但别假定）
