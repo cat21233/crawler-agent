@@ -1,0 +1,95 @@
+# ============================================================
+# crawler-agent 一键起全栈：app + mysql + mock 站点
+#
+#   docker compose up -d --build     # 起（首次会 build 镜像，几分钟）
+#   docker compose ps                # 看三个容器的健康状态
+#   docker compose logs -f app       # 跟日志
+#   docker compose down              # 停（数据留着，在 volume 里）
+#   docker compose down -v           # 停并删库（下次起来是空表）
+#
+# 三个设计决定，都是为了「在宿主机上开发不被容器抢资源」：
+#   1. 容器 MySQL 映射到 3307，不占宿主 3306（phpStudy 的 5.7 还在跑）
+#   2. app 映射到 8010，和 dev_up.bat 的本地端口一致，浏览器地址不用改
+#   3. 容器里的库是「全新实例」，与宿主机 phpStudy 里那份数据互不相干
+# ============================================================
+name: crawler-agent
+
+services:
+  mysql:
+    image: mysql:8.0
+    # ① --default-authentication-plugin：MySQL 8 默认 caching_sha2_password，
+    #    pymysql 走非加密连接做这种认证需要额外的 cryptography 包，否则报
+    #    "Authentication plugin 'caching_sha2_password' cannot be loaded"。
+    #    改回 native_password = 少一个依赖、少一类新手报错。
+    # ② utf8mb4：MySQL 的 "utf8" 只有 3 字节，存 emoji 直接报错
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在项目根的 .env 里补 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-crawler_agent}
+      MYSQL_USER: ${MYSQL_USER:-crawler_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在项目根的 .env 里补 MYSQL_PASSWORD}
+    volumes:
+      # 具名卷：容器删了数据还在。存 MySQL 数据目录，不是存 .sql 文件
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    healthcheck:
+      # $$ 是 compose 的转义：写成 $ 会被 compose 自己先吃掉，容器里就成空串了。
+      # 没有这个 healthcheck，app 会抢在 MySQL 初始化完成前连库 → 直接退出。
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+    image: crawler-agent:dev
+    # 密钥、API key、JWT_SECRET_KEY 全靠 env_file 进来 ——
+    # 不写进本文件，是因为本文件要进 Git。
+    env_file:
+      - .env
+    environment:
+      # ★ 覆盖 .env 里的 DATABASE_URL（那份指向宿主机 127.0.0.1:3306）。
+      #   environment 的优先级高于 env_file，所以这里写就生效。
+      #   主机名用服务名 mysql —— compose 内置 DNS 会把它解析到那个容器。
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-crawler_app}:${MYSQL_PASSWORD:?请在 .env 里补 MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-crawler_agent}?charset=utf8mb4
+    ports:
+      - "8010:8000"
+    depends_on:
+      mysql:
+        # 不是 service_started —— 那只是「容器进程起来了」，
+        # MySQL 进程起来后还要初始化数据目录十几秒，这时连库必失败
+        condition: service_healthy
+    healthcheck:
+      # slim 镜像里没有 curl，用 python 自己发请求（镜像本来就有 python）
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=2).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  mock:
+    # 复用 app 的镜像，不单独 build：mock 站就是仓库里的 mock_site/ 目录，
+    # 同一份代码，只是换个入口命令。
+    image: crawler-agent:dev
+    command: ["python", "mock_site/server.py"]
+    environment:
+      # ★ 容器里必须 0.0.0.0：绑 127.0.0.1 只有容器自己能访问，
+      #   app 容器通过 http://mock:8099 是打不通的（这是最容易漏的一步）
+      MOCK_HOST: 0.0.0.0
+      MOCK_PORT: "8099"
+      # 0 = 不限流。要演示「429 被识别为限流而不是失败」时改成 3
+      MOCK_LIMIT: "0"
+    ports:
+      - "8099:8099"
+    depends_on:
+      app:
+        condition: service_started
+
+volumes:
+  mysql_data:

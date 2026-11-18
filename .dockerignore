@@ -1,0 +1,37 @@
+# 构建上下文裁剪 —— 不在这里排除的东西都会被打包发给 docker daemon，
+# 又慢又可能泄密。
+
+# ★ 最高优先级：.env 里有 API key 和 JWT 密钥，绝不许进镜像
+.env
+.env.*
+
+# 虚拟环境（几百 MB，容器里用镜像自带的 python）
+.venv/
+venv/
+
+# 版本库与 IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 本地数据库 / 抓取产物（容器里重新生成）
+*.db
+*.sqlite3
+.crawl_cache/
+downloads/
+
+# 本地练习脚本，不进镜像也不进版本库
+scratch_*.py
+
+# 文档与测试：镜像只跑服务，不需要它们（测试要连本机库，容器里跑不了）
+docs/
+tests/
+README.md
+dev_up.bat
+pytest.ini

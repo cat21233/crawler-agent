@@ -4,6 +4,11 @@ import functools
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 LIMIT = int(os.environ.get("MOCK_LIMIT", "0"))
+# 绑哪个地址由环境变量决定，默认值保持本机开发的老行为（127.0.0.1:8099）。
+# 容器里必须传 MOCK_HOST=0.0.0.0：绑 127.0.0.1 时只有容器自己能访问，
+# 宿主机映射端口和 app 容器的 http://mock:8099 都会打不通。
+HOST = os.environ.get("MOCK_HOST", "127.0.0.1")
+PORT = int(os.environ.get("MOCK_PORT", "8099"))
 _hits = 0
 
 
@@ -55,9 +60,9 @@ class Handler(SimpleHTTPRequestHandler):
         super().do_GET()
 def main():
     handler = functools.partial(Handler, directory=BASE)
-    httpd = ThreadingHTTPServer(("127.0.0.1", 8099), handler)
+    httpd = ThreadingHTTPServer((HOST, PORT), handler)
     print(
-        f"[mock] 起在 http://127.0.0.1:8099  "
+        f"[mock] 起在 http://{HOST}:{PORT}  "
         f"MOCK_LIMIT={LIMIT or '不限流'}  BASE={BASE}",
         flush=True,
     )
