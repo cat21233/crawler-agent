@@ -204,7 +204,14 @@ def _pick(card_tag, spec: dict) -> str | None:
         return None
     attr = spec.get("attr")
     if attr:
-        return tag.get(attr)  # 属性不存在返回 None，不会像 tag[attr] 那样抛 KeyError
+        val = tag.get(attr)  # 属性不存在返回 None，不会像 tag[attr] 那样抛 KeyError
+        # class / rel 这类属性是 HTML 的「多值属性」，bs4 返回 list 而不是 str：
+        #   <p class="star-rating One"> → tag.get("class") == ["star-rating", "One"]
+        # 不处理的话它会以数组形状进 extra，前端表格里显示成 ["star-rating","One"]。
+        # 其它属性（href/src/title）都是普通字符串，不受影响。
+        if isinstance(val, list):
+            return " ".join(val)
+        return val
     return tag.get_text(" ", strip=True)
 
 
@@ -355,7 +362,15 @@ def parse_target(target_id: int, ref: str) -> list[dict]:
         if not t.field_map:
             raise ValueError(f"target_id={target_id}未配置field_map,无法解析")
         field_map = json.loads(t.field_map)
-        base_url = t.url
+        # ★ 解析基准必须是「这一页的真实 URL」，不是 target.url。
+        #   target.url 只是入口地址；翻到第 2 页后相对地址的基准会变。
+        #   实证（books.toscrape.com，52K 页面）：
+        #     首页   href = catalogue/a-light-in-the-attic_1000/index.html（相对站点根）
+        #     第2页  href = in-her-wake_980/index.html（相对 /catalogue/）
+        #   用 target.url 拼第 2 页 → 少一段 /catalogue/ → 链接 404，
+        #   而 url_hash 照旧去重，数据「看着有、打不开」。
+        #   cache 里存着抓取时的原始 url，用它做基准才对。
+        base_url = get_cache().get_url(ref) or t.url
     finally:
         s.close()
     return parse_by_selector(html, base_url, field_map)

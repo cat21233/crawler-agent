@@ -1,0 +1,105 @@
+event: start
+data: {"type": "start", "thread_id": "20261120_144200_781d"}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 1, "names": ["list_targets"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 1, "name": "list_targets", "args": {}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 1, "name": "list_targets", "ok": true, "latency_ms": 2, "preview": "{\"ok\": true, \"result\": [{\"id\": 1, \"url\": \"http://mock:8099/\", \"field_map\": {\"card\": \"article.card\", \"name\": {\"sel\": \"h2.name\"}, \"price\": {\"sel\": \"p.price\", \"cast\": \"money\"}, \"url\": {\"sel\": \"a.detail-l"}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 2, "names": ["fetch_page"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 2, "name": "fetch_page", "args": {"url": "https://books.toscrape.com/"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 2, "name": "fetch_page", "ok": true, "latency_ms": 1804, "preview": "{\"ok\": true, \"result\": {\"ref\": \"page_a1cb5882\", \"url\": \"https://books.toscrape.com/\", \"chars\": 51274}}"}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 3, "names": ["parse_target", "extract_links"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 3, "name": "parse_target", "args": {"target_id": 2, "ref": "page_a1cb5882"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 3, "name": "parse_target", "ok": true, "latency_ms": 98, "preview": "{\"ok\": true, \"result\": [{\"name\": \"A Light in the Attic\", \"url\": \"https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html\", \"price\": 51.77, \"rating\": \"star-rating Three\", \"stock\": \"In"}
+
+event: tool_start
+data: {"type": "tool_start", "step": 3, "name": "extract_links", "args": {"ref": "page_a1cb5882", "selector": "li.next a"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 3, "name": "extract_links", "ok": true, "latency_ms": 11, "preview": "{\"ok\": true, \"result\": {\"links\": [\"https://books.toscrape.com/catalogue/page-2.html\"], \"total\": 1}}"}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 4, "names": ["save_records", "fetch_page"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 4, "name": "save_records", "args": {"target_id": 2, "cards": "<20 项列表>"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 4, "name": "save_records", "ok": true, "latency_ms": 19, "preview": "{\"ok\": true, \"result\": {\"inserted\": 20, \"skipped\": 0}}"}
+
+event: tool_start
+data: {"type": "tool_start", "step": 4, "name": "fetch_page", "args": {"url": "https://books.toscrape.com/catalogue/page-2.html"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 4, "name": "fetch_page", "ok": true, "latency_ms": 1556, "preview": "{\"ok\": true, \"result\": {\"ref\": \"page_aa0960d3\", \"url\": \"https://books.toscrape.com/catalogue/page-2.html\", \"chars\": 50853}}"}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 5, "names": ["parse_target", "extract_links"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 5, "name": "parse_target", "args": {"ref": "page_aa0960d3", "target_id": 2}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 5, "name": "parse_target", "ok": true, "latency_ms": 16, "preview": "{\"ok\": true, \"result\": [{\"name\": \"In Her Wake\", \"url\": \"https://books.toscrape.com/catalogue/in-her-wake_980/index.html\", \"price\": 12.84, \"rating\": \"star-rating One\", \"stock\": \"In stock\"}, {\"name\": \"H"}
+
+event: tool_start
+data: {"type": "tool_start", "step": 5, "name": "extract_links", "args": {"ref": "page_aa0960d3", "selector": "li.next a"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 5, "name": "extract_links", "ok": true, "latency_ms": 12, "preview": "{\"ok\": true, \"result\": {\"links\": [\"https://books.toscrape.com/catalogue/page-3.html\"], \"total\": 1}}"}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 6, "names": ["save_records", "fetch_page"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 6, "name": "save_records", "args": {"target_id": 2, "cards": "<20 项列表>"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 6, "name": "save_records", "ok": true, "latency_ms": 16, "preview": "{\"ok\": true, \"result\": {\"inserted\": 20, \"skipped\": 0}}"}
+
+event: tool_start
+data: {"type": "tool_start", "step": 6, "name": "fetch_page", "args": {"url": "https://books.toscrape.com/catalogue/page-3.html"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 6, "name": "fetch_page", "ok": true, "latency_ms": 4243, "preview": "{\"ok\": true, \"result\": {\"ref\": \"page_09fa99ce\", \"url\": \"https://books.toscrape.com/catalogue/page-3.html\", \"chars\": 51354}}"}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 7, "names": ["parse_target"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 7, "name": "parse_target", "args": {"ref": "page_09fa99ce", "target_id": 2}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 7, "name": "parse_target", "ok": true, "latency_ms": 17, "preview": "{\"ok\": true, \"result\": [{\"name\": \"Slow States of Collapse: Poems\", \"url\": \"https://books.toscrape.com/catalogue/slow-states-of-collapse-poems_960/index.html\", \"price\": 57.31, \"rating\": \"star-rating Th"}
+
+event: tool_calls
+data: {"type": "tool_calls", "step": 8, "names": ["save_records"]}
+
+event: tool_start
+data: {"type": "tool_start", "step": 8, "name": "save_records", "args": {"target_id": 2, "cards": "<20 项列表>"}}
+
+event: tool_end
+data: {"type": "tool_end", "step": 8, "name": "save_records", "ok": true, "latency_ms": 21, "preview": "{\"ok\": true, \"result\": {\"inserted\": 20, \"skipped\": 0}}"}
+
+event: answer
+data: {"type": "answer", "content": "已完成 target_id=2（books.toscrape.com）前 3 页的抓取入库。\n\n**结果汇总**\n- 成功目标：1 个（target_id=2）\n- 抓取页数：3 页（首页 → page-2.html → page-3.html，均通过页面里真实的「next」链接发现并跟入）\n- 新增记录：**60 条**（每页 20 条，3 页 × 20）\n- 跳过：0 条（无重复）\n- 失败：无\n\n**字段情况**：name / url / price / rating / stock 五个字段均正常解析，价格已按 money 规则转为数值（如 51.77），rating 取到 class 形如「star-rating Three」，stock 均为「In stock」。无 429 限流，无解析空数组。\n\n按指令在第 3 页后停止，未继续抓第 4 页及之后（页面确还有下一页入口）。"}
+
+event: done
+data: {"type": "done"}
+
