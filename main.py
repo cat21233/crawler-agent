@@ -18,7 +18,7 @@ from routers import targets as targets_router
 from routers import agent_run as agent_run_router
 from routers import trace as trace_router
 from routers import stats as stats_router
-
+from routers import records as records_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -45,6 +45,7 @@ app.include_router(targets_router.router)
 app.include_router(trace_router.router)
 app.include_router(agent_run_router.router)
 app.include_router(stats_router.router)
+app.include_router(records_router.router)
 
 # 前端静态资源。挂载整个目录而不是一个个加端点：前端有 html/js/css 三个文件，
 # 每加一个文件就加一个路由不现实。静态文件不碰数据库，和业务路由互不影响。

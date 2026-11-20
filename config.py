@@ -43,8 +43,17 @@ class Settings(BaseSettings):
 
     # 修前：env_file=".env"（cwd 相对，PyCharm 跑脚本 cwd=脚本目录→找不到）
     # 修后：env_file=<config.py 同级的 .env>（任何 cwd 下都能找到）
+    # extra="ignore"：.env 是「应用配置」和「docker compose 变量」共用的文件。
+    # compose 要的 MYSQL_ROOT_PASSWORD / MYSQL_DATABASE / MYSQL_USER / MYSQL_PASSWORD
+    # 不属于 Settings 的字段 —— 默认严格模式（extra_forbidden）会直接拒收：
+    #   Extra inputs are not permitted [type=extra_forbidden, input_value='crawler_agent']
+    # 更阴的是它只对「读 .env 文件」这条路径生效，对「环境变量」路径不生效，
+    # 所以容器里（.env 不进镜像、变量靠 compose 注入）一直是好的，本地 pytest 才炸。
+    # 代价说清楚：字段名打错（如 DATABSE_URL）也不会再报错，会静默吃默认值 ——
+    # 兜底靠 validate_settings()：它对「必须有值」的项做显式检查，启动即失败。
     model_config = SettingsConfigDict(
-        env_file=str(Path(__file__).resolve().parent / ".env")
+        env_file=str(Path(__file__).resolve().parent / ".env"),
+        extra="ignore",
     )
 settings = Settings()
 

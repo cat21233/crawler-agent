@@ -174,6 +174,7 @@ function handle(ev) {
 
     case "done":
       setStatus("● 完成" + (threadId ? ` · ${threadId}` : ""));
+      loadRecords();
       break;
 
     case "error":
@@ -279,3 +280,46 @@ els.q.addEventListener("keydown", (e) => {
   // 不判断的话，每打一个词都会误触发一次 Agent。
   if (e.key === "Enter" && !e.isComposing) run();
 });
+async function loadRecords() {
+  const tbody = document.querySelector("#records tbody");
+  tbody.innerHTML = "";
+  try {
+    const resp = await fetch("/records?limit=200");
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const rows = await resp.json();
+    if (rows.length === 0) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 5; td.className = "placeholder"; td.textContent = "（还没有数据，先跑一次采集）";
+      tr.appendChild(td); tbody.appendChild(tr);
+      return;
+    }
+    for (const r of rows) {
+      const tr = document.createElement("tr");
+      const tds = {
+        id: r.id, title: r.title, price: r.price ?? "—",
+      };
+      const tdId = document.createElement("td"); tdId.textContent = tds.id;
+      const tdTitle = document.createElement("td"); tdTitle.textContent = tds.title;
+      const tdPrice = document.createElement("td"); tdPrice.textContent = tds.price;
+      const tdUrl = document.createElement("td"); tdUrl.className = "url";
+      const a = document.createElement("a");
+      a.href = r.url; a.textContent = r.url; a.target = "_blank"; a.rel = "noopener";
+      tdUrl.appendChild(a);
+      const tdExtra = document.createElement("td");
+      const kv = Object.entries(r.extra || {}).map(([k, v]) => `${k}=${v}`).join(" · ");
+      tdExtra.textContent = kv || "—";
+      tr.append(tdId, tdTitle, tdPrice, tdUrl, tdExtra);
+      tbody.appendChild(tr);
+    }
+  } catch (e) {
+    tbody.innerHTML = "";
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 5; td.className = "placeholder"; td.textContent = `加载失败：${e.message}`;
+    tr.appendChild(td); tbody.appendChild(tr);
+  }
+}
+
+$("refresh").addEventListener("click", loadRecords);
+loadRecords();
