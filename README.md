@@ -1,5 +1,7 @@
 # crawler-agent
 
+[![CI](https://github.com/cat21233/crawler-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/cat21233/crawler-agent/actions/workflows/ci.yml)
+
 **模型决定「抓什么、翻到第几页」，爬虫工具负责执行；每一步都落进 `agent_traces`，可以按会话回放。**
 
 ## 一条命令起全栈
