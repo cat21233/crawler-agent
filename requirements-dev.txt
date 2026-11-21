@@ -1,3 +1,13 @@
 # 开发/测试依赖（不进生产镜像：.dockerignore 已排除 tests/）
 # 版本与本地 .venv 一致，避免「本地绿、CI 红」的第一个来源
 pytest==9.1.1
+
+# CI 的 MySQL 8 service 用默认认证插件 caching_sha2_password；
+# pymysql 走非加密连接做这种认证需要 RSA 公钥交换 → 依赖 cryptography。
+# 本地没这个包也能跑，是因为本地容器启动时带了
+#   --default-authentication-plugin=mysql_native_password（在 compose 的 command: 里）
+# 而 GitHub 的 service 只接受 docker create 的参数，传不了 mysqld 参数。
+# 缺这个包时 CI 会报：
+#   RuntimeError: 'cryptography' package is required for sha256_password or
+#   caching_sha2_password auth methods
+cryptography==50.0.2

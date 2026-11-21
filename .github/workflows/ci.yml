@@ -19,15 +19,13 @@ jobs:
           MYSQL_DATABASE: crawler_agent_test
         ports:
           - "3306:3306"
-        # ① health-cmd：不等 MySQL 初始化完，测试会在「连不上」上挂掉
-        # ② default-authentication-plugin：MySQL 8 默认 caching_sha2_password，
-        #    pymysql 走非加密连接认证它需要额外装 cryptography；改 native 省掉这个依赖
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
-          --health-interval=5s
-          --health-timeout=3s
-          --health-retries=20
-          --default-authentication-plugin=mysql_native_password
+        # options 里只能放 docker create 认的参数（--health-*、--network 之类）。
+        # ★ 11-21 第一次 push 就栽在这：把 --default-authentication-plugin 塞进来，
+        #   它是 mysqld 的参数、不是 docker 的参数 → unknown flag → exit 125，
+        #   连一个 step 都没跑到。compose 里能写是因为它属于 command:。
+        # 换成 native 认证的问题用另一种方式解决：requirements-dev.txt 装 cryptography，
+        # 让 pymysql 支持 MySQL 8 默认的 caching_sha2_password。
+        options: --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=3s --health-retries=20
 
     env:
       # 与本地 .env 同格式，只是库名换成测试库
