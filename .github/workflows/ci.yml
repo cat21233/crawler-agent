@@ -19,13 +19,14 @@ jobs:
           MYSQL_DATABASE: crawler_agent_test
         ports:
           - "3306:3306"
-        # options 里只能放 docker create 认的参数（--health-*、--network 之类）。
-        # ★ 11-21 第一次 push 就栽在这：把 --default-authentication-plugin 塞进来，
-        #   它是 mysqld 的参数、不是 docker 的参数 → unknown flag → exit 125，
-        #   连一个 step 都没跑到。compose 里能写是因为它属于 command:。
-        # 换成 native 认证的问题用另一种方式解决：requirements-dev.txt 装 cryptography，
-        # 让 pymysql 支持 MySQL 8 默认的 caching_sha2_password。
-        options: --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=3s --health-retries=20
+        # ★ 故意不写 options（11-21 两次踩坑换来的结论）：
+        #   ① options 是传给 `docker create` 的参数，不是 mysqld 的参数。
+        #      把 --default-authentication-plugin 塞进来 → unknown flag → exit 125，
+        #      容器都没创建成功，一个 step 都跑不到。
+        #   ② 就算写 --health-cmd="mysqladmin ping ... -uroot -proot"，引号里的空格
+        #      是否被正确切成一个参数，各版本 runner 行为不一致，同样可能 125。
+        # 结论：就绪检测不要塞进 options，用下面的独立步骤（Python 连库重试）——
+        # 它和本地、和 docker compose 的行为一致，报错也看得见。
 
     env:
       # 与本地 .env 同格式，只是库名换成测试库
@@ -43,6 +44,30 @@ jobs:
 
       - name: 安装依赖
         run: pip install -r requirements.txt -r requirements-dev.txt
+
+      # 等 MySQL 真正能接受连接。放在装依赖之后（要 import pymysql），
+      # 放进去之前（在 options 里）连报错都看不到。
+      - name: 等 MySQL 就绪
+        run: |
+          python - <<'PY'
+          import sys, time
+          import pymysql
+
+          for i in range(60):
+              try:
+                  pymysql.connect(
+                      host="127.0.0.1", user="root", password="root",
+                      connect_timeout=2,
+                  ).close()
+                  print(f"MySQL 就绪，等待 {i * 2}s")
+                  sys.exit(0)
+              except Exception as e:
+                  if i % 5 == 0:
+                      print(f"  第 {i * 2}s 还没就绪：{type(e).__name__}")
+                  time.sleep(2)
+          print("MySQL 120s 内没起来")
+          sys.exit(1)
+          PY
 
       # ★ 这一步最容易被忘：本地能过是因为库里的 5 张表早就建好了，
       #   CI 每次都是全新空库 —— 不建表，第一条用例就 Table doesn't exist。
