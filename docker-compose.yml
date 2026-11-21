@@ -17,6 +17,11 @@ name: crawler-agent
 services:
   mysql:
     image: mysql:8.0
+    # 三个服务都要有 restart 策略，缺一个就会出「单飞崩溃循环」：
+    #   11-21 实测：Docker Desktop 关闭时 mysql/mock 被 SIGKILL(137)，重启 Desktop 后
+    #   只有配了 restart 的 app 被拉起 → 它连不上库 → exit 3 → 反复重启。
+    #   策略只覆盖「有策略的服务」，依赖没起来时它反而放大问题。
+    restart: unless-stopped
     # ① --default-authentication-plugin：MySQL 8 默认 caching_sha2_password，
     #    pymysql 走非加密连接做这种认证需要额外的 cryptography 包，否则报
     #    "Authentication plugin 'caching_sha2_password' cannot be loaded"。
@@ -90,6 +95,7 @@ services:
     # 同一份代码，只是换个入口命令。
     image: crawler-agent:dev
     command: ["python", "mock_site/server.py"]
+    restart: unless-stopped   # 同 mysql：少了它 Desktop 重启后就只剩 app 单飞
     environment:
       # ★ 容器里必须 0.0.0.0：绑 127.0.0.1 只有容器自己能访问，
       #   app 容器通过 http://mock:8099 是打不通的（这是最容易漏的一步）
