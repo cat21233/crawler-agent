@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # 测试连的是真 MySQL（不是 sqlite）：本地跑的是 5.7/8.0 + utf8mb4，
+    # 换成 sqlite 会掩盖「唯一约束 / 字符集 / 外键」这类只在 MySQL 暴露的问题。
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: crawler_agent_test
+        ports:
+          - "3306:3306"
+        # ① health-cmd：不等 MySQL 初始化完，测试会在「连不上」上挂掉
+        # ② default-authentication-plugin：MySQL 8 默认 caching_sha2_password，
+        #    pymysql 走非加密连接认证它需要额外装 cryptography；改 native 省掉这个依赖
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+          --default-authentication-plugin=mysql_native_password
+
+    env:
+      # 与本地 .env 同格式，只是库名换成测试库
+      DATABASE_URL: mysql+pymysql://root:root@127.0.0.1:3306/crawler_agent_test?charset=utf8mb4
+      # 长度 ≥32：config.validate_settings() 的门槛是 32，太短会启动即失败
+      JWT_SECRET_KEY: ci-only-dummy-secret-key-0123456789abcdef
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      # ★ 这一步最容易被忘：本地能过是因为库里的 5 张表早就建好了，
+      #   CI 每次都是全新空库 —— 不建表，第一条用例就 Table doesn't exist。
+      #   init_db.py 内部断言「5 张表」，建少了会在这里就红，而不是等到测试里报错。
+      - name: 建表（空库显式建，并断言行数）
+        run: python init_db.py
+
+      - name: 跑测试
+        run: pytest -q
