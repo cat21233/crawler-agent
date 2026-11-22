@@ -7,13 +7,19 @@
 ## 一条命令起全栈
 
 ```bash
-cp .env.example .env        # 填一个 LLM key（deepseek / agnes / zhipu 任选其一）
+cp .env.example .env        # 只需要改一处：填一个 LLM key（deepseek / agnes / zhipu 任选其一）
 docker compose up -d --build
 # 打开 http://127.0.0.1:8010
 ```
 
 三个容器：`app`（FastAPI + SSE）、`mysql`（8.0，数据在具名卷里）、`mock`（本地演示站，用于离线跑通）。
 容器 MySQL 落在宿主机 **3307**，不占用本机已有的 3306。
+
+> **不填 LLM key 会怎样**（11-22 实测）：`app` 启动时 `validate_settings()` 抛 `ConfigError`，
+> lifespan 失败 → 进程退出码 3 → 因为配了 `restart: unless-stopped`，**容器会以约 1.7 秒一次的频率无限重启**，
+> `docker compose ps` 里看到的是 `Restarting (3)` 而不是 `Exited (3)`。
+> 排查入口只有一个：`docker logs crawler-agent-app-1 --tail 20`。
+> 全流程记录见 `docs/evidence/compose-clean-run.md`。
 
 ## 它做什么
 
