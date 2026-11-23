@@ -1,5 +1,5 @@
 
-import time          # 这个文件里其实只有 loop 用，trace.py 可能不需要
+       # 这个文件里其实只有 loop 用，trace.py 可能不需要
 import uuid
 from datetime import datetime
 
@@ -17,8 +17,9 @@ def new_thread_id() -> str:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     suffix = uuid.uuid4().hex[:4]
     return f"{stamp}_{suffix}"
+
 def save_trace(
-        thread_id :str,
+        thread_id: str,
         step: int,
         role: str,
         tool_name: str | None = None,
@@ -27,10 +28,17 @@ def save_trace(
         status: str = "ok",
         error: str | None = None,
         latency_ms: int | None = None,
+        thought: str | None = None,
+        tokens: int | None = None,
 ) -> None:
+
     if observation is not None and len(observation) > 2000:
         total = len(observation)
         observation = observation[:2000] + f"...(已截断，原长{total})"
+    if thought is not None and len(thought) > 2000:
+        total = len(thought)
+        thought = thought[:2000] + f"...(已截断，原长{total})"
+
     s = SessionLocal()
     try:
         s.add(AgentTrace(
@@ -42,7 +50,9 @@ def save_trace(
             observation=observation,
             status=status,
             error=error,
-            latency_ms=latency_ms
+            latency_ms=latency_ms,
+            thought=thought,
+            tokens=tokens
         ))
         s.commit()
     except Exception as e:

@@ -52,6 +52,11 @@ async def call_one_tool(client, model, messages, thread_id: str, step: int, trac
     )
     msg = resp.choices[0].message
     messages.append(msg)
+    save_trace(
+        thread_id, step, "assistant",
+        thought=msg.content,
+        tokens=resp.usage.total_tokens if resp.usage else None,
+    )
     if not msg.tool_calls:                 # 情况1：模型没要工具 → 告诉外层"停"
         return False
     emit("tool_calls", step=step, names=[tc.function.name for tc in msg.tool_calls])
@@ -64,7 +69,7 @@ async def call_one_tool(client, model, messages, thread_id: str, step: int, trac
             # 模型吐了非法 JSON —— 这是常态，回填错误让它自己改
             result = {"ok": False, "error": f"arguments 不是合法 JSON: {e}"}
             save_trace(
-                thread_id, step, "assistant",
+                thread_id, step, "tool",
                 tool_name=tc.function.name,
                 action=tc.function.arguments,
                 status="error",
