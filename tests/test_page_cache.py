@@ -57,3 +57,57 @@ def test_expired_entry_returns_none():
 
     got = cache.get(ref)
     assert got is None, f"过期后应返回 None，实际返回 {got!r}"
+
+
+def test_get_url_returns_original_url():
+    cache = PageCache(ttl=60, max_size=10)
+    ref = cache.put("<html>x</html>", "http://example.com/p9")
+
+    assert cache.get_url(ref) == "http://example.com/p9"
+
+def test_put_same_url_reuses_ref():
+    cache = PageCache(ttl=60, max_size=10)
+    r1 = cache.put('<html>a</html>', "http://example.com/p10")
+    r2 = cache.put('<html>b</html>', "http://example.com/p10")
+
+    assert len(cache._store) == 1
+    assert cache.get(r1) == '<html>b</html>'
+    assert r2 == r1, "同一 url 二次 put 必须返回同一个 ref，否则调用方拿到的是废码"
+def test_fifo_evict_drops_oldest():
+    cache = PageCache(ttl=60, max_size=2)
+    r1 = cache.put('<html>1</html>', "http://example.com/p10")
+    r2 = cache.put('<html>2</html>', "http://example.com/p11")
+    r3 = cache.put('<html>3</html>', "http://example.com/p12")
+
+    assert cache.get(r1) is None
+    assert cache.get(r2) is not None
+    assert cache.get(r3) is not None
+
+def test_dangling_index_is_cleaned():
+    cache = PageCache(ttl=60, max_size=10)
+    ref = cache.put('<html>1</html>', "http://example.com/p10")
+    del cache._store[ref]
+    assert cache.check_url_index("http://example.com/p10") is None
+    assert "http://example.com/p10" not in cache._url_index
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
