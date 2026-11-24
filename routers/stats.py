@@ -3,7 +3,7 @@
 数据全部来自 agent_traces，不额外落表：trace 是原始事实，统计是它的视图。
 这样统计永远不会和 trace 对不上（同一份数据只有一个来源）。
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends,Query
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,59 @@ from db import get_db
 from db_models import AgentTrace
 
 router = APIRouter(prefix="/stats", tags=["stats"])
+
+
+
+@router.get("/threads")
+def stats_threads(
+        limit: int = Query(20, ge=1, le=200),
+        db: Session = Depends(get_db)
+) -> dict:
+    step = func.count(func.distinct(AgentTrace.step))
+    tools = func.sum(case((AgentTrace.role == "tool", 1), else_=0))
+    total_tokens = func.sum(AgentTrace.tokens)
+    tokens_rows = func.count(AgentTrace.tokens)
+    errors = func.sum(
+        case(
+            ((AgentTrace.role == "tool")& (AgentTrace.status == "error"), 1),
+            else_=0,
+
+            )
+)
+    total_latency = func.sum(func.coalesce(AgentTrace.latency_ms, 0))
+    rows = (
+        db.query(
+            AgentTrace.thread_id.label("thread_id"),
+            step.label("steps"),
+            tools.label("tools"),
+            total_tokens.label("total_tokens"),
+            tokens_rows.label("tokens_rows"),
+            errors.label("errors"),
+            total_latency.label("total_latency_ms"),
+        )
+        .group_by(AgentTrace.thread_id)
+        .order_by(func.max(AgentTrace.id).desc())
+        .limit(limit)
+        .all()
+    )
+    threads = []
+    for r in rows:
+        t = int(r.tools or 0)
+        e = int(r.errors or 0)
+        threads.append(
+            {
+                "thread_id": r.thread_id,
+                "steps": int(r.steps or 0),
+                "tools": t,
+                "total_tokens": int(r.total_tokens) if r.total_tokens is not None else None,
+                "tokens_rows": int(r.tokens_rows or 0),
+                "errors": e,
+                "success_rate": round(1-e/t, 4) if t else None,
+                "total_latency_ms": int(r.total_latency_ms or 0)
+
+            }
+        )
+    return {"threads": threads, "count": len(threads)}
 
 
 @router.get("/tools")

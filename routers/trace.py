@@ -35,6 +35,8 @@ def get_trace(thread_id: str, db: Session = Depends(get_db))-> dict:
             "error": t.error,
             "latency_ms": t.latency_ms,
             "created_at": t.created_at.isoformat() if t.created_at else None,
+            "thought": t.thought,
+            "tokens": t.tokens,
         }
         for t in rows
     ]
