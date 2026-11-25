@@ -2,9 +2,10 @@
 import asyncio
 import json
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from common.security import verify_api_key
 
 from agent.loop import run_agent
 
@@ -17,7 +18,7 @@ class RunRequest(BaseModel):
 
 
 @router.post("/run")
-async def run(req: RunRequest) -> StreamingResponse:
+async def run(req: RunRequest, _: None = Depends(verify_api_key)) -> StreamingResponse:
     """跑一次 Agent，把每一步作为 SSE 事件推给客户端。
 
     两个关键点（写错了不报错，只是"看起来像流式"）：

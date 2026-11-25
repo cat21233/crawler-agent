@@ -33,11 +33,20 @@ class Settings(BaseSettings):
     database_echo: bool = False
     llm_provider: str = "deepseek"
 
+
     # ── JWT 签名密钥（秘密！只能来自 .env）────────────
     # 这个值是 token 的「印章」：拿到它就能自签任意用户名的 token。
     # 所以它属于秘密，不属于可调参数 —— 代码里故意不给可用默认值。
     # 生成方式：python -c "import secrets; print(secrets.token_urlsafe(48))"
     jwt_secret_key: str = ""
+
+    # ── 接口鉴权的入站密钥（秘密！只能来自 .env）────────
+    # ★ 方向和上面那批 llm 厂商 key 相反：
+    #   厂商 key = 「我出去调别人」的凭据；这个 = 「别人进来调我」的门票。
+    #   HTTP 头名是 X-API-Key，但变量名不叫 api_key ——
+    #   旁边有 deepseek_api_key 之类，叫 api_key 会被误认为第四家厂商。
+    # 生成方式：python -c "import secrets; print(secrets.token_urlsafe(32))"
+    app_api_key: str = ""
 
     # .env 路径固定为 config.py 同级（项目根），不再依赖 cwd。
 
@@ -96,4 +105,10 @@ def validate_settings() -> None:
     if settings.llm_provider not in providers:
         raise ConfigError(f"当前厂商 {settings.llm_provider} 没有配置 API key，请在 .env 里补上")
 
+    if len(settings.app_api_key.strip()) < 16:
+        raise ConfigError(
+            "APP_API_KEY 缺失或太短（要求 ≥16 字符）。"
+            '生成一个：python -c "import secrets; print(secrets.token_urlsafe(32))"'
+            "，然后写进项目根的 .env：APP_API_KEY=<生成的值>"
+        )
 

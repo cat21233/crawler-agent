@@ -10,7 +10,7 @@
  */
 
 const $ = (id) => document.getElementById(id);
-
+const API_KEY = "dev-key-change-me-please-2026";
 const els = {
   q: $("q"),
   go: $("go"),
@@ -233,7 +233,7 @@ async function run() {
   try {
     const resp = await fetch("/agent/run", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json","X-API-Key":API_KEY},
       body: JSON.stringify({ input, max_turns: 12 }),
     });
 
