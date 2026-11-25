@@ -1,5 +1,5 @@
 # ============================================================
-# crawler-agent 一键起全栈：app + mysql + mock 站点
+# crawler-agent 一键起全栈：app + mysql + mock
 #
 #   docker compose up -d --build     # 起（首次会 build 镜像，几分钟）
 #   docker compose ps                # 看三个容器的健康状态
@@ -7,80 +7,74 @@
 #   docker compose down              # 停（数据留着，在 volume 里）
 #   docker compose down -v           # 停并删库（下次起来是空表）
 #
-# 三个设计决定，都是为了「在宿主机上开发不被容器抢资源」：
-#   1. 容器 MySQL 映射到 3307，不占宿主 3306（phpStudy 的 5.7 还在跑）
-#   2. app 映射到 8010，和 dev_up.bat 的本地端口一致，浏览器地址不用改
-#   3. 容器里的库是「全新实例」，与宿主机 phpStudy 里那份数据互不相干
+# ★ 六条判据的落点用 [判据 N] 标在下面，复习时对着看。
 # ============================================================
 name: crawler-agent
 
 services:
   mysql:
     image: mysql:8.0
-    # 三个服务都要有 restart 策略，缺一个就会出「单飞崩溃循环」：
-    #   11-21 实测：Docker Desktop 关闭时 mysql/mock 被 SIGKILL(137)，重启 Desktop 后
-    #   只有配了 restart 的 app 被拉起 → 它连不上库 → exit 3 → 反复重启。
-    #   策略只覆盖「有策略的服务」，依赖没起来时它反而放大问题。
+    # [判据] 三个服务都要有 restart 策略，缺一个就出「单飞崩溃循环」：
+    #   11-21 实测 Desktop 关闭时 mysql/mock 被 SIGKILL(137)，重启后只有 app 被拉起
+    #   → 连不上库 → exit 3 → 反复重启。策略只覆盖「有策略的服务」。
     restart: unless-stopped
     # ① --default-authentication-plugin：MySQL 8 默认 caching_sha2_password，
-    #    pymysql 走非加密连接做这种认证需要额外的 cryptography 包，否则报
+    #    pymysql 非加密连接做这种认证要额外的 cryptography 包，否则报
     #    "Authentication plugin 'caching_sha2_password' cannot be loaded"。
-    #    改回 native_password = 少一个依赖、少一类新手报错。
-    # ② utf8mb4：MySQL 的 "utf8" 只有 3 字节，存 emoji 直接报错
+    # ② utf8mb4：MySQL 的 "utf8" 只有 3 字节，存 emoji 直接报错。
+    # ※ 三个 flag 都是「--词-词=值」形态，中间是连字符，不是空格。
     command:
       - --default-authentication-plugin=mysql_native_password
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
+    # [判据 3 的一半] 变量必须挂在 environment: 这一层下面，直接写在服务层会成非法属性
     environment:
-      # 容器默认时区是 UTC，而 records.crawled_at 用的是 MySQL 的 now()。
+      # 容器默认 UTC，而 records.crawled_at 用 MySQL 的 now()。
       # 不设这个，11-18 15:02 落库的记录会显示成 07:02（差 8 小时）。
-      # 只影响「容器时钟」，不改变数据本身 —— 但导出/演示时时间戳必须对得上。
       TZ: Asia/Shanghai
+      # [判据 6] 密钥只用 ${VAR:?提示语}：缺了就报错停住，绝不写默认值。
+      #   本文件要进 Git，默认值 = 明文密码进历史，删提交也删不掉。
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在项目根的 .env 里补 MYSQL_ROOT_PASSWORD}
+      # 库名/用户名不是密钥，给默认值合理 —— 用 :- 而不是 :?
       MYSQL_DATABASE: ${MYSQL_DATABASE:-crawler_agent}
       MYSQL_USER: ${MYSQL_USER:-crawler_app}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在项目根的 .env 里补 MYSQL_PASSWORD}
     volumes:
-      # 具名卷：容器删了数据还在。存 MySQL 数据目录，不是存 .sql 文件
+      # [判据 2 前半] 具名卷：容器删了数据还在
       - mysql_data:/var/lib/mysql
     ports:
+      # [判据 1] 宿主 3307 → 容器 3306（3306 被本机 phpStudy 占了）
       - "3307:3306"
     healthcheck:
-      # $$ 是 compose 的转义：写成 $ 会被 compose 自己先吃掉，容器里就成空串了。
-      # 没有这个 healthcheck，app 会抢在 MySQL 初始化完成前连库 → 直接退出。
+      # [判据 3] `$$` 是 compose 转义：写单个 $ 会被 compose 先吃掉，容器里变空串。
+      # 没有它，app 会抢在 MySQL 初始化完成前连库 → 直接退出。
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 30s
+      interval: 5s        # 每 5 秒探一次
+      timeout: 3s         # 单次探测超 3 秒算失败
+      retries: 20         # 连续失败 20 次才判 unhealthy
+      start_period: 30s   # ★ 下划线不是连字符；这段时间的失败不计入 retries
 
   app:
     build:
       context: .
     image: crawler-agent:dev
-    # unless-stopped：进程异常退出就自动拉起，你手动 stop 的不拉。
-    # 起因（11-20 实证）：强制重建 mysql 时 app 正在启动阶段，连库被拒 →
-    #   OperationalError 2003 → "Application startup failed. Exiting." → Exited (3)
-    # 没有这条策略时容器就静静躺在 Exited，表现是「前端突然打不开，但 mysql 是健康的」。
-    # 注意它只能兜「退出」，兜不了「启动就必错」——真配置错时会变成反复重启，
-    # 所以日志里那种 traceback 仍然要看，别指望它自愈。
     restart: unless-stopped
-    # 密钥、API key、JWT_SECRET_KEY 全靠 env_file 进来 ——
-    # 不写进本文件，是因为本文件要进 Git。
+    # 密钥、API key、JWT_SECRET_KEY 全靠 env_file 进来 —— 不写进本文件，因为它要进 Git
     env_file:
       - .env
     environment:
-      # ★ 覆盖 .env 里的 DATABASE_URL（那份指向宿主机 127.0.0.1:3306）。
-      #   environment 的优先级高于 env_file，所以这里写就生效。
-      #   主机名用服务名 mysql —— compose 内置 DNS 会把它解析到那个容器。
+      # [判据 5] 覆盖 .env 里的 DATABASE_URL（那份指向宿主 127.0.0.1:3306）。
+      #   environment 优先级高于 env_file，所以这里写就生效。
+      #   主机名必须是服务名 mysql —— compose 内置 DNS 负责解析到那个容器。
       TZ: Asia/Shanghai
       DATABASE_URL: mysql+pymysql://${MYSQL_USER:-crawler_app}:${MYSQL_PASSWORD:?请在 .env 里补 MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-crawler_agent}?charset=utf8mb4
     ports:
+      # 和 dev_up.bat 的本地端口一致（宿主 8010 → 容器 8000），浏览器地址不用改
       - "8010:8000"
     depends_on:
       mysql:
-        # 不是 service_started —— 那只是「容器进程起来了」，
-        # MySQL 进程起来后还要初始化数据目录十几秒，这时连库必失败
+        # [判据 4] 不是 service_started —— 那只保证「进程起来了」，
+        # MySQL 起来后还要初始化数据目录十几秒，这时连库必失败。
         condition: service_healthy
     healthcheck:
       # slim 镜像里没有 curl，用 python 自己发请求（镜像本来就有 python）
@@ -91,18 +85,16 @@ services:
       start_period: 15s
 
   mock:
-    # 复用 app 的镜像，不单独 build：mock 站就是仓库里的 mock_site/ 目录，
-    # 同一份代码，只是换个入口命令。
+    # 复用 app 的镜像，不单独 build：mock 站就是仓库里的 mock_site/，同一份代码换个入口
     image: crawler-agent:dev
     command: ["python", "mock_site/server.py"]
-    restart: unless-stopped   # 同 mysql：少了它 Desktop 重启后就只剩 app 单飞
+    restart: unless-stopped
     environment:
       # ★ 容器里必须 0.0.0.0：绑 127.0.0.1 只有容器自己能访问，
-      #   app 容器通过 http://mock:8099 是打不通的（这是最容易漏的一步）
+      #   app 通过 http://mock:8099 打不通（最容易漏的一步）
       MOCK_HOST: 0.0.0.0
       MOCK_PORT: "8099"
-      # 0 = 不限流。要演示「429 被识别为限流而不是失败」时改成 3
-      MOCK_LIMIT: "0"
+      MOCK_LIMIT: "0"     # 0 = 不限流；演示「429 被识别为限流」时改成 3
     ports:
       - "8099:8099"
     depends_on:
@@ -110,4 +102,5 @@ services:
         condition: service_started
 
 volumes:
+  # [判据 2 后半] 不在这里声明，上面挂载时会报 undefined volume
   mysql_data:
