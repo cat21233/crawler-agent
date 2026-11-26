@@ -83,18 +83,62 @@ function inlineMd(s) {
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 }
 
+/** 表格行：以 | 开头的行（模型输出的标准 markdown 表格一定首尾带竖线） */
+const isTableRow = (s) => /^\s*\|/.test(s);
+
+/** 分隔行：|---|:---:|---|，至少三段横线。用它确认「上一行是表头」 */
+const isTableSep = (s) => /^[\s|:-]*-{3,}[\s|:-]*$/.test(s.trim());
+
+/** 拆单元格：去掉首尾竖线，按 | 切，每格走 inlineMd（整段已转义，安全） */
+function tableCells(s) {
+  return s
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((c) => inlineMd(c.trim()));
+}
+
 /**
- * 极简 markdown：只处理模型实际会用的几种（标题 / 粗体 / 行内码 / 代码块 / 列表）。
+ * 极简 markdown：只处理模型实际会用的几种
+ * （标题 / 粗体 / 行内码 / 代码块 / 列表 / 表格）。
  * 不是通用实现 —— 演示场景够用，多一种语法就多一处注入风险。
+ *
+ * 表格为什么要单独缓冲：<table> 是结构性标签，<thead> 必须包住所有 <th>，
+ * 不能像 <li> 那样逐行往 out 里推。所以先攒够一整块，再一次性渲染。
  */
 function renderMarkdown(src) {
   const lines = escapeHtml(src).split("\n");
   const out = [];
   let inList = false;
   let inCode = false;
+  let table = []; // 表格行缓冲
+
+  /**
+   * 把缓冲的表格行整体吐出去。
+   * 第二行不是分隔行 → 说明这不是表格，退化成普通段落（宁可少渲染，不要错渲染）。
+   */
+  const flushTable = () => {
+    if (table.length === 0) return;
+    if (table.length < 2 || !isTableSep(table[1])) {
+      for (const l of table) out.push(inlineMd(l) + "<br>");
+      table = [];
+      return;
+    }
+    const head = tableCells(table[0]).map((c) => `<th>${c}</th>`).join("");
+    const body = table
+      .slice(2)
+      .map((r) => "<tr>" + tableCells(r).map((c) => `<td>${c}</td>`).join("") + "</tr>")
+      .join("");
+    out.push(
+      `<div class="tbl"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
+    );
+    table = [];
+  };
 
   for (const raw of lines) {
     if (raw.trim().startsWith("```")) {
+      flushTable(); // 表格不能跨代码块，先收尾
       inCode = !inCode;
       out.push(inCode ? '<pre class="code">' : "</pre>");
       continue;
@@ -103,6 +147,13 @@ function renderMarkdown(src) {
       out.push(raw);
       continue;
     }
+
+    if (isTableRow(raw)) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      table.push(raw);
+      continue; // 攒着，不立刻输出
+    }
+    flushTable(); // 遇到非表格行，先把攒的表格吐掉
 
     const isLi = /^\s*[-*] /.test(raw);
     if (isLi && !inList) { out.push("<ul>"); inList = true; }
@@ -123,6 +174,7 @@ function renderMarkdown(src) {
     }
   }
 
+  flushTable(); // 表格在最后一块时必须再收一次，否则整块丢失
   if (inList) out.push("</ul>");
   if (inCode) out.push("</pre>");
   return out.join("\n");
